@@ -1,0 +1,624 @@
+<title>Дерево эпох Civi</title>
+<style>
+  :root{
+    --bg:#f3f1ec;
+    --surface:#ffffff;
+    --surface-2:#eae7df;
+    --border:#d8d3c7;
+    --text:#26221c;
+    --text-dim:#6b6558;
+    --text-faint:#9a9384;
+    --accent-sci:#2f6f76;
+    --accent-sci-ink:#e9f3f3;
+    --accent-cul:#a85a3a;
+    --accent-cul-ink:#f6ece5;
+    --era-a:#ffffff;
+    --era-b:#efece3;
+    --edge:#9e9581;
+    --edge-hi:#26221c;
+    --danger:#a8402f;
+    --shadow: 0 1px 2px rgba(30,25,15,.06), 0 4px 14px rgba(30,25,15,.06);
+    --focus: 0 0 0 3px rgba(47,111,118,.35);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#171512;
+      --surface:#211f1a;
+      --surface-2:#2a2721;
+      --border:#3a362d;
+      --text:#ece7dc;
+      --text-dim:#b3ac9c;
+      --text-faint:#867f6f;
+      --accent-sci:#5fb2ba;
+      --accent-sci-ink:#0f2426;
+      --accent-cul:#e08e63;
+      --accent-cul-ink:#2b1a10;
+      --era-a:#211f1a;
+      --era-b:#282520;
+      --edge:#665f4d;
+      --edge-hi:#ece7dc;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 20px rgba(0,0,0,.35);
+      --focus: 0 0 0 3px rgba(95,178,186,.45);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#171512;
+    --surface:#211f1a;
+    --surface-2:#2a2721;
+    --border:#3a362d;
+    --text:#ece7dc;
+    --text-dim:#b3ac9c;
+    --text-faint:#867f6f;
+    --accent-sci:#5fb2ba;
+    --accent-sci-ink:#0f2426;
+    --accent-cul:#e08e63;
+    --accent-cul-ink:#2b1a10;
+    --era-a:#211f1a;
+    --era-b:#282520;
+    --edge:#665f4d;
+    --edge-hi:#ece7dc;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 20px rgba(0,0,0,.35);
+    --focus: 0 0 0 3px rgba(95,178,186,.45);
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size:14px;
+    line-height:1.5;
+  }
+  h1,h2,h3{
+    font-family: ui-serif, Georgia, "Times New Roman", serif;
+    font-weight:600;
+    text-wrap:balance;
+    margin:0;
+  }
+  .wrap{max-width:1500px;margin:0 auto;padding:28px 28px 64px;}
+  header.page{margin-bottom:22px;}
+  header.page h1{font-size:26px;letter-spacing:.2px;}
+  header.page p{color:var(--text-dim);max-width:72ch;margin:8px 0 0;}
+  .rule-box{
+    margin-top:14px;background:var(--surface);border:1px solid var(--border);
+    border-radius:10px;padding:12px 16px;font-size:12.5px;color:var(--text-dim);
+    box-shadow:var(--shadow);
+  }
+  .rule-box b{color:var(--text);}
+
+  .tree-section{margin-top:36px;}
+  .tree-head{
+    display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;
+    margin-bottom:12px;
+  }
+  .tree-head h2{font-size:19px;}
+  .tree-head .sub{color:var(--text-dim);font-size:12.5px;margin-top:3px;}
+  .tree-sci .tree-head h2{color:var(--accent-sci);}
+  .tree-cul .tree-head h2{color:var(--accent-cul);}
+
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  button{
+    font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--border);
+    background:var(--surface);color:var(--text);padding:7px 13px;font-size:12.5px;
+    font-weight:600;transition:transform .08s ease, background .15s ease;
+  }
+  button:hover{background:var(--surface-2);}
+  button:active{transform:translateY(1px);}
+  button:focus-visible{outline:none;box-shadow:var(--focus);}
+  button.primary.sci{background:var(--accent-sci);border-color:var(--accent-sci);color:var(--accent-sci-ink);}
+  button.primary.cul{background:var(--accent-cul);border-color:var(--accent-cul);color:var(--accent-cul-ink);}
+  button.ghost{background:transparent;}
+  button.danger{color:var(--danger);border-color:var(--danger);background:transparent;}
+  button:disabled{opacity:.45;cursor:not-allowed;}
+
+  .board-scroll{
+    overflow-x:auto;overflow-y:hidden;border:1px solid var(--border);border-radius:12px;
+    background:var(--surface);box-shadow:var(--shadow);
+  }
+  .board{position:relative;display:flex;align-items:stretch;min-height:120px;}
+  svg.edges{position:absolute;top:0;left:0;pointer-events:none;overflow:visible;}
+  .edge-path{fill:none;stroke:var(--edge);stroke-width:1.6;opacity:.85;}
+  .edge-path.hi{stroke:var(--edge-hi);opacity:1;stroke-width:2.25;}
+  .edge-path.dim{opacity:.08;}
+
+  .era-col{
+    position:relative;width:216px;flex:0 0 216px;border-right:1px dashed var(--border);
+    padding:0 10px 18px;
+  }
+  .era-col:last-child{border-right:none;}
+  .era-col.alt{background:var(--era-b);}
+  .era-col.base{background:var(--era-a);}
+  .era-head{
+    position:sticky;top:0;z-index:3;padding:12px 2px 10px;background:inherit;
+    border-bottom:1px solid var(--border);margin-bottom:10px;
+  }
+  .era-head .idx{font-size:10px;color:var(--text-faint);letter-spacing:.06em;text-transform:uppercase;}
+  .era-head .name{font-family: ui-serif, Georgia, serif;font-size:14px;font-weight:600;margin-top:2px;text-wrap:balance;}
+  .era-head .count{font-size:11px;color:var(--text-dim);margin-top:2px;font-variant-numeric:tabular-nums;}
+
+  .node-list{display:flex;flex-direction:column;gap:7px;position:relative;z-index:2;}
+  .node{
+    background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--branch, var(--accent-sci));
+    border-radius:7px;padding:7px 9px;cursor:pointer;font-size:12.3px;font-weight:500;
+    box-shadow:var(--shadow);transition:transform .08s ease, box-shadow .12s ease;
+  }
+  .node:hover{transform:translateY(-1px);}
+  .node:focus-visible{outline:none;box-shadow:var(--focus);}
+  .node.dim{opacity:.28;}
+  .node.hi{box-shadow:0 0 0 2px var(--edge-hi), var(--shadow);}
+  .node .branch-label{display:block;font-size:9.5px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;}
+  .node .new-badge{display:inline-block;margin-left:5px;font-size:9px;padding:1px 5px;border-radius:99px;background:var(--accent-sci);color:var(--accent-sci-ink);vertical-align:middle;}
+  .tree-cul .node .new-badge{background:var(--accent-cul);color:var(--accent-cul-ink);}
+
+  .legend{display:flex;flex-wrap:wrap;gap:6px 12px;margin:10px 0 14px;font-size:11.5px;color:var(--text-dim);}
+  .legend .sw{display:inline-flex;align-items:center;gap:5px;}
+  .legend .dot{width:9px;height:9px;border-radius:3px;display:inline-block;}
+
+  /* modal */
+  .overlay{position:fixed;inset:0;background:rgba(20,17,12,.5);display:none;align-items:flex-start;justify-content:center;padding:5vh 16px;z-index:50;overflow-y:auto;}
+  .overlay.open{display:flex;}
+  .modal{
+    background:var(--surface);border:1px solid var(--border);border-radius:14px;
+    width:100%;max-width:560px;padding:22px;box-shadow:var(--shadow);
+  }
+  .modal h3{font-size:17px;margin-bottom:14px;}
+  .field{margin-bottom:13px;}
+  .field label{display:block;font-size:11.5px;font-weight:600;color:var(--text-dim);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;}
+  .field input[type=text], .field select{
+    width:100%;padding:8px 10px;border-radius:7px;border:1px solid var(--border);
+    background:var(--bg);color:var(--text);font:inherit;font-size:13px;
+  }
+  .field input:focus-visible, .field select:focus-visible{outline:none;box-shadow:var(--focus);}
+  .field .hint{font-size:11px;color:var(--text-faint);margin-top:4px;}
+  .prereq-search{margin-bottom:6px;}
+  .prereq-list{max-height:190px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:6px 8px;background:var(--bg);}
+  .prereq-row{display:flex;align-items:center;gap:7px;padding:4px 2px;font-size:12.5px;}
+  .prereq-row .era-tag{color:var(--text-faint);font-size:10.5px;margin-left:auto;}
+  .deps-of{font-size:12px;color:var(--text-dim);margin-top:4px;}
+  .modal-actions{display:flex;justify-content:space-between;gap:10px;margin-top:18px;}
+  .modal-actions .right{display:flex;gap:8px;}
+
+  footer.page{margin-top:40px;color:var(--text-faint);font-size:11.5px;border-top:1px solid var(--border);padding-top:14px;}
+  .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);}
+</style>
+
+<div class="wrap">
+  <header class="page">
+    <h1>Дерево эпох Civi — прототип</h1>
+    <p>Рабочий макет двух деревьев развития: Наука и Социальные концепции. Эпохи — статичные полосы по горизонтали.
+      Внутри одной эпохи технологии не зависят друг от друга; связи могут вести к любой более ранней эпохе, не обязательно соседней.</p>
+    <div class="rule-box">
+      <b>Правило согласованности:</b> в рамках одной ветки (например «Осадные вооружения») в одной эпохе не может быть больше одной технологии —
+      поэтому «Перемешать» безопасно меняет порядок карточек внутри эпохи и никогда не создаёт логических противоречий вроде бомбарды раньше требушета.
+      Изменения (перемешивание, добавление, перенос, связи) сохраняются в этом браузере автоматически.
+    </div>
+  </header>
+
+  <section class="tree-section tree-sci" id="app-sci"></section>
+  <section class="tree-section tree-cul" id="app-cul"></section>
+
+  <footer class="page">
+    Этап 1 · Проектирование дерева технологий · черновой интерактивный прототип, данные не окончательны.
+  </footer>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal" id="modal"></div>
+</div>
+
+<script>
+const TECH_DATA = {"eras": [{"id": "stone", "name": "Каменный век", "order": 0}, {"id": "bronze", "name": "Бронзовый век", "order": 1}, {"id": "antiquity", "name": "Античность", "order": 2}, {"id": "early_medieval", "name": "Раннее Средневековье", "order": 3}, {"id": "high_medieval", "name": "Высокое Средневековье", "order": 4}, {"id": "exploration", "name": "Эпоха исследований", "order": 5}, {"id": "renaissance", "name": "Возрождение", "order": 6}, {"id": "enlightenment", "name": "Просвещение", "order": 7}, {"id": "industrial_rev", "name": "Промышленная революция", "order": 8}, {"id": "industrial", "name": "Индустриальная эра", "order": 9}, {"id": "modern", "name": "Новое время", "order": 10}, {"id": "atomic", "name": "Атомная эра", "order": 11}, {"id": "information", "name": "Информационная эра", "order": 12}, {"id": "digital", "name": "Цифровая эра", "order": 13}, {"id": "future", "name": "Будущее", "order": 14}], "branches": [{"id": "agriculture", "name": "Сельское хозяйство", "color": "#8bc34a"}, {"id": "materials", "name": "Материалы и металлургия", "color": "#9e9e9e"}, {"id": "construction", "name": "Строительство и архитектура", "color": "#a1887f"}, {"id": "siege", "name": "Осадные вооружения", "color": "#e57373"}, {"id": "ranged", "name": "Стрелковое оружие", "color": "#ef6c00"}, {"id": "mobility", "name": "Конница и бронетехника", "color": "#6d4c41"}, {"id": "naval", "name": "Мореплавание и флот", "color": "#4fc3f7"}, {"id": "science", "name": "Наука и приборы", "color": "#7e57c2"}, {"id": "medicine", "name": "Медицина", "color": "#ec407a"}, {"id": "energy", "name": "Энергетика", "color": "#fbc02d"}, {"id": "transport", "name": "Наземный транспорт", "color": "#795548"}, {"id": "communication", "name": "Связь и информация", "color": "#26a69a"}, {"id": "economy", "name": "Экономика и финансы", "color": "#c0ca33"}, {"id": "industry", "name": "Промышленность и автоматизация", "color": "#607d8b"}, {"id": "aviation", "name": "Авиация и космонавтика", "color": "#5c6bc0"}, {"id": "chemistry", "name": "Химия", "color": "#66bb6a"}, {"id": "computing", "name": "Вычисления и ИИ", "color": "#29b6f6"}, {"id": "biotech", "name": "Биотехнологии", "color": "#ab47bc"}], "nodes": [{"id": "t_agriculture_stone", "name": "Земледелие", "branch": "agriculture", "era": "stone", "prereqs": []}, {"id": "t_agriculture_bronze", "name": "Скотоводство", "branch": "agriculture", "era": "bronze", "prereqs": ["t_agriculture_stone"]}, {"id": "t_agriculture_antiquity", "name": "Ирригационные системы", "branch": "agriculture", "era": "antiquity", "prereqs": ["t_agriculture_bronze"]}, {"id": "t_agriculture_early_medieval", "name": "Тяжёлый плуг", "branch": "agriculture", "era": "early_medieval", "prereqs": ["t_agriculture_antiquity"]}, {"id": "t_agriculture_high_medieval", "name": "Трёхполье (севооборот)", "branch": "agriculture", "era": "high_medieval", "prereqs": ["t_agriculture_early_medieval"]}, {"id": "t_agriculture_exploration", "name": "Плантационное земледелие", "branch": "agriculture", "era": "exploration", "prereqs": ["t_agriculture_high_medieval"]}, {"id": "t_agriculture_enlightenment", "name": "Агрономия", "branch": "agriculture", "era": "enlightenment", "prereqs": ["t_agriculture_exploration"]}, {"id": "t_agriculture_industrial_rev", "name": "Механизация сельского хозяйства", "branch": "agriculture", "era": "industrial_rev", "prereqs": ["t_agriculture_enlightenment"]}, {"id": "t_agriculture_industrial", "name": "Промышленные удобрения", "branch": "agriculture", "era": "industrial", "prereqs": ["t_agriculture_industrial_rev"]}, {"id": "t_agriculture_modern", "name": "Трактора и комбайны", "branch": "agriculture", "era": "modern", "prereqs": ["t_agriculture_industrial"]}, {"id": "t_agriculture_information", "name": "Зелёная революция", "branch": "agriculture", "era": "information", "prereqs": ["t_agriculture_modern"]}, {"id": "t_agriculture_digital", "name": "Точное земледелие", "branch": "agriculture", "era": "digital", "prereqs": ["t_agriculture_information"]}, {"id": "t_agriculture_future", "name": "Вертикальные фермы", "branch": "agriculture", "era": "future", "prereqs": ["t_agriculture_digital"]}, {"id": "t_materials_stone", "name": "Обработка камня и кости", "branch": "materials", "era": "stone", "prereqs": []}, {"id": "t_materials_bronze", "name": "Плавка бронзы", "branch": "materials", "era": "bronze", "prereqs": ["t_materials_stone"]}, {"id": "t_materials_antiquity", "name": "Плавка железа", "branch": "materials", "era": "antiquity", "prereqs": ["t_materials_bronze"]}, {"id": "t_materials_early_medieval", "name": "Кузнечная сталь", "branch": "materials", "era": "early_medieval", "prereqs": ["t_materials_antiquity"]}, {"id": "t_materials_high_medieval", "name": "Доменная печь (чугун)", "branch": "materials", "era": "high_medieval", "prereqs": ["t_materials_early_medieval"]}, {"id": "t_materials_exploration", "name": "Пушечное литьё", "branch": "materials", "era": "exploration", "prereqs": ["t_materials_high_medieval"]}, {"id": "t_materials_renaissance", "name": "Точная металлообработка", "branch": "materials", "era": "renaissance", "prereqs": ["t_materials_exploration"]}, {"id": "t_materials_enlightenment", "name": "Тигельная сталь", "branch": "materials", "era": "enlightenment", "prereqs": ["t_materials_renaissance"]}, {"id": "t_materials_industrial_rev", "name": "Пудлингование", "branch": "materials", "era": "industrial_rev", "prereqs": ["t_materials_enlightenment"]}, {"id": "t_materials_industrial", "name": "Бессемеровская сталь", "branch": "materials", "era": "industrial", "prereqs": ["t_materials_industrial_rev"]}, {"id": "t_materials_modern", "name": "Лёгкие сплавы", "branch": "materials", "era": "modern", "prereqs": ["t_materials_industrial"]}, {"id": "t_materials_atomic", "name": "Композитные материалы", "branch": "materials", "era": "atomic", "prereqs": ["t_materials_modern"]}, {"id": "t_materials_information", "name": "Полупроводниковые материалы", "branch": "materials", "era": "information", "prereqs": ["t_materials_atomic"]}, {"id": "t_materials_digital", "name": "Наноматериалы", "branch": "materials", "era": "digital", "prereqs": ["t_materials_information"]}, {"id": "t_materials_future", "name": "Метаматериалы", "branch": "materials", "era": "future", "prereqs": ["t_materials_digital"]}, {"id": "t_construction_stone", "name": "Плотницкое дело", "branch": "construction", "era": "stone", "prereqs": []}, {"id": "t_construction_bronze", "name": "Каменная кладка", "branch": "construction", "era": "bronze", "prereqs": ["t_construction_stone"]}, {"id": "t_construction_antiquity", "name": "Своды и арки", "branch": "construction", "era": "antiquity", "prereqs": ["t_construction_bronze"]}, {"id": "t_construction_early_medieval", "name": "Крепостное зодчество", "branch": "construction", "era": "early_medieval", "prereqs": ["t_construction_antiquity"]}, {"id": "t_construction_high_medieval", "name": "Готическая архитектура", "branch": "construction", "era": "high_medieval", "prereqs": ["t_construction_early_medieval"]}, {"id": "t_construction_exploration", "name": "Морские порты и доки", "branch": "construction", "era": "exploration", "prereqs": ["t_construction_high_medieval"]}, {"id": "t_construction_renaissance", "name": "Архитектура классицизма", "branch": "construction", "era": "renaissance", "prereqs": ["t_construction_exploration"]}, {"id": "t_construction_enlightenment", "name": "Гражданское строительство", "branch": "construction", "era": "enlightenment", "prereqs": ["t_construction_renaissance"]}, {"id": "t_construction_industrial_rev", "name": "Чугунные каркасы", "branch": "construction", "era": "industrial_rev", "prereqs": ["t_construction_enlightenment"]}, {"id": "t_construction_industrial", "name": "Стальной каркас", "branch": "construction", "era": "industrial", "prereqs": ["t_construction_industrial_rev"]}, {"id": "t_construction_modern", "name": "Железобетон", "branch": "construction", "era": "modern", "prereqs": ["t_construction_industrial"]}, {"id": "t_construction_atomic", "name": "Крупнопанельное строительство", "branch": "construction", "era": "atomic", "prereqs": ["t_construction_modern"]}, {"id": "t_construction_information", "name": "Высотное строительство", "branch": "construction", "era": "information", "prereqs": ["t_construction_atomic"]}, {"id": "t_construction_digital", "name": "Умные здания", "branch": "construction", "era": "digital", "prereqs": ["t_construction_information"]}, {"id": "t_construction_future", "name": "Мегаструктуры", "branch": "construction", "era": "future", "prereqs": ["t_construction_digital"]}, {"id": "t_siege_bronze", "name": "Тараны и осадные лестницы", "branch": "siege", "era": "bronze", "prereqs": []}, {"id": "t_siege_antiquity", "name": "Катапульты и баллисты", "branch": "siege", "era": "antiquity", "prereqs": ["t_siege_bronze"]}, {"id": "t_siege_high_medieval", "name": "Требушет", "branch": "siege", "era": "high_medieval", "prereqs": ["t_siege_antiquity"]}, {"id": "t_siege_exploration", "name": "Бомбарда", "branch": "siege", "era": "exploration", "prereqs": ["t_siege_high_medieval"]}, {"id": "t_siege_renaissance", "name": "Полевая артиллерия", "branch": "siege", "era": "renaissance", "prereqs": ["t_siege_exploration"]}, {"id": "t_siege_industrial_rev", "name": "Нарезная артиллерия", "branch": "siege", "era": "industrial_rev", "prereqs": ["t_siege_renaissance", "t_materials_high_medieval"]}, {"id": "t_siege_industrial", "name": "Скорострельная артиллерия", "branch": "siege", "era": "industrial", "prereqs": ["t_siege_industrial_rev"]}, {"id": "t_siege_modern", "name": "Тяжёлая осадная артиллерия", "branch": "siege", "era": "modern", "prereqs": ["t_siege_industrial"]}, {"id": "t_siege_atomic", "name": "Ракетная артиллерия", "branch": "siege", "era": "atomic", "prereqs": ["t_siege_modern"]}, {"id": "t_siege_future", "name": "Кинетическое орбитальное оружие", "branch": "siege", "era": "future", "prereqs": ["t_siege_atomic"]}, {"id": "t_ranged_stone", "name": "Стрельба из лука", "branch": "ranged", "era": "stone", "prereqs": []}, {"id": "t_ranged_antiquity", "name": "Композитный лук", "branch": "ranged", "era": "antiquity", "prereqs": ["t_ranged_stone"]}, {"id": "t_ranged_early_medieval", "name": "Арбалет", "branch": "ranged", "era": "early_medieval", "prereqs": ["t_ranged_antiquity"]}, {"id": "t_ranged_exploration", "name": "Аркебуза", "branch": "ranged", "era": "exploration", "prereqs": ["t_ranged_early_medieval", "t_materials_high_medieval"]}, {"id": "t_ranged_renaissance", "name": "Мушкет", "branch": "ranged", "era": "renaissance", "prereqs": ["t_ranged_exploration"]}, {"id": "t_ranged_enlightenment", "name": "Кремнёвый мушкет", "branch": "ranged", "era": "enlightenment", "prereqs": ["t_ranged_renaissance"]}, {"id": "t_ranged_industrial_rev", "name": "Игольчатая винтовка", "branch": "ranged", "era": "industrial_rev", "prereqs": ["t_ranged_enlightenment"]}, {"id": "t_ranged_industrial", "name": "Магазинная винтовка", "branch": "ranged", "era": "industrial", "prereqs": ["t_ranged_industrial_rev"]}, {"id": "t_ranged_modern", "name": "Автоматическое стрелковое оружие", "branch": "ranged", "era": "modern", "prereqs": ["t_ranged_industrial"]}, {"id": "t_ranged_atomic", "name": "Реактивные гранатомёты", "branch": "ranged", "era": "atomic", "prereqs": ["t_ranged_modern"]}, {"id": "t_ranged_digital", "name": "Высокоточное лёгкое оружие", "branch": "ranged", "era": "digital", "prereqs": ["t_ranged_atomic"]}, {"id": "t_mobility_stone", "name": "Верховая езда", "branch": "mobility", "era": "stone", "prereqs": []}, {"id": "t_mobility_antiquity", "name": "Тяжёлая конница (стремя)", "branch": "mobility", "era": "antiquity", "prereqs": ["t_mobility_stone"]}, {"id": "t_mobility_high_medieval", "name": "Латная рыцарская конница", "branch": "mobility", "era": "high_medieval", "prereqs": ["t_mobility_antiquity"]}, {"id": "t_mobility_renaissance", "name": "Драгуны", "branch": "mobility", "era": "renaissance", "prereqs": ["t_mobility_high_medieval"]}, {"id": "t_mobility_industrial_rev", "name": "Бронеавтомобили", "branch": "mobility", "era": "industrial_rev", "prereqs": ["t_mobility_renaissance"]}, {"id": "t_mobility_modern", "name": "Танки", "branch": "mobility", "era": "modern", "prereqs": ["t_mobility_industrial_rev", "t_materials_industrial", "t_industry_industrial"]}, {"id": "t_mobility_atomic", "name": "Реактивная бронетехника", "branch": "mobility", "era": "atomic", "prereqs": ["t_mobility_modern"]}, {"id": "t_mobility_information", "name": "Роботизированная техника", "branch": "mobility", "era": "information", "prereqs": ["t_mobility_atomic"]}, {"id": "t_mobility_future", "name": "Автономные боевые платформы", "branch": "mobility", "era": "future", "prereqs": ["t_mobility_information"]}, {"id": "t_naval_stone", "name": "Плоты и лодки", "branch": "naval", "era": "stone", "prereqs": []}, {"id": "t_naval_bronze", "name": "Парусное судостроение", "branch": "naval", "era": "bronze", "prereqs": ["t_naval_stone"]}, {"id": "t_naval_antiquity", "name": "Триремы и боевые галеры", "branch": "naval", "era": "antiquity", "prereqs": ["t_naval_bronze"]}, {"id": "t_naval_high_medieval", "name": "Компас и когг", "branch": "naval", "era": "high_medieval", "prereqs": ["t_naval_antiquity"]}, {"id": "t_naval_exploration", "name": "Каравелла", "branch": "naval", "era": "exploration", "prereqs": ["t_naval_high_medieval"]}, {"id": "t_naval_renaissance", "name": "Галеон", "branch": "naval", "era": "renaissance", "prereqs": ["t_naval_exploration"]}, {"id": "t_naval_industrial_rev", "name": "Пароходство", "branch": "naval", "era": "industrial_rev", "prereqs": ["t_naval_renaissance"]}, {"id": "t_naval_industrial", "name": "Броненосцы", "branch": "naval", "era": "industrial", "prereqs": ["t_naval_industrial_rev"]}, {"id": "t_naval_modern", "name": "Авианосцы", "branch": "naval", "era": "modern", "prereqs": ["t_naval_industrial"]}, {"id": "t_naval_atomic", "name": "Атомные подводные лодки", "branch": "naval", "era": "atomic", "prereqs": ["t_naval_modern"]}, {"id": "t_naval_digital", "name": "Автономные морские платформы", "branch": "naval", "era": "digital", "prereqs": ["t_naval_atomic", "t_energy_atomic"]}, {"id": "t_science_bronze", "name": "Астрология", "branch": "science", "era": "bronze", "prereqs": []}, {"id": "t_science_antiquity", "name": "Математика и геометрия", "branch": "science", "era": "antiquity", "prereqs": ["t_science_bronze"]}, {"id": "t_science_early_medieval", "name": "Алхимия", "branch": "science", "era": "early_medieval", "prereqs": ["t_science_antiquity"]}, {"id": "t_science_high_medieval", "name": "Астрономия", "branch": "science", "era": "high_medieval", "prereqs": ["t_science_early_medieval"]}, {"id": "t_science_exploration", "name": "Навигационные приборы", "branch": "science", "era": "exploration", "prereqs": ["t_science_high_medieval"]}, {"id": "t_science_renaissance", "name": "Телескоп и оптика", "branch": "science", "era": "renaissance", "prereqs": ["t_science_exploration"]}, {"id": "t_science_enlightenment", "name": "Научный метод и академии", "branch": "science", "era": "enlightenment", "prereqs": ["t_science_renaissance"]}, {"id": "t_science_industrial_rev", "name": "Точные измерительные приборы", "branch": "science", "era": "industrial_rev", "prereqs": ["t_science_enlightenment"]}, {"id": "t_science_industrial", "name": "Спектроскопия", "branch": "science", "era": "industrial", "prereqs": ["t_science_industrial_rev"]}, {"id": "t_science_modern", "name": "Квантовая физика", "branch": "science", "era": "modern", "prereqs": ["t_science_industrial"]}, {"id": "t_science_atomic", "name": "Ядерная физика", "branch": "science", "era": "atomic", "prereqs": ["t_science_modern"]}, {"id": "t_science_information", "name": "Компьютерное моделирование", "branch": "science", "era": "information", "prereqs": ["t_science_atomic"]}, {"id": "t_science_digital", "name": "Big Data и аналитика", "branch": "science", "era": "digital", "prereqs": ["t_science_information"]}, {"id": "t_science_future", "name": "Квантовые вычисления", "branch": "science", "era": "future", "prereqs": ["t_science_digital"]}, {"id": "t_medicine_stone", "name": "Народная медицина", "branch": "medicine", "era": "stone", "prereqs": []}, {"id": "t_medicine_antiquity", "name": "Античная медицина", "branch": "medicine", "era": "antiquity", "prereqs": ["t_medicine_stone"]}, {"id": "t_medicine_high_medieval", "name": "Университетская медицина", "branch": "medicine", "era": "high_medieval", "prereqs": ["t_medicine_antiquity"]}, {"id": "t_medicine_renaissance", "name": "Анатомия", "branch": "medicine", "era": "renaissance", "prereqs": ["t_medicine_high_medieval"]}, {"id": "t_medicine_enlightenment", "name": "Вакцинация", "branch": "medicine", "era": "enlightenment", "prereqs": ["t_medicine_renaissance"]}, {"id": "t_medicine_industrial_rev", "name": "Асептика и антисептика", "branch": "medicine", "era": "industrial_rev", "prereqs": ["t_medicine_enlightenment", "t_science_high_medieval"]}, {"id": "t_medicine_industrial", "name": "Микробиология", "branch": "medicine", "era": "industrial", "prereqs": ["t_medicine_industrial_rev"]}, {"id": "t_medicine_modern", "name": "Антибиотики", "branch": "medicine", "era": "modern", "prereqs": ["t_medicine_industrial"]}, {"id": "t_medicine_atomic", "name": "Ядерная медицина", "branch": "medicine", "era": "atomic", "prereqs": ["t_medicine_modern"]}, {"id": "t_medicine_information", "name": "Генетическая диагностика", "branch": "medicine", "era": "information", "prereqs": ["t_medicine_atomic"]}, {"id": "t_medicine_digital", "name": "Персонализированная медицина", "branch": "medicine", "era": "digital", "prereqs": ["t_medicine_information"]}, {"id": "t_medicine_future", "name": "Биоинженерия человека", "branch": "medicine", "era": "future", "prereqs": ["t_medicine_digital"]}, {"id": "t_energy_high_medieval", "name": "Ветряная и водяная мельница", "branch": "energy", "era": "high_medieval", "prereqs": []}, {"id": "t_energy_industrial_rev", "name": "Паровой двигатель", "branch": "energy", "era": "industrial_rev", "prereqs": ["t_energy_high_medieval"]}, {"id": "t_energy_industrial", "name": "Электричество", "branch": "energy", "era": "industrial", "prereqs": ["t_energy_industrial_rev"]}, {"id": "t_energy_modern", "name": "Двигатель внутреннего сгорания", "branch": "energy", "era": "modern", "prereqs": ["t_energy_industrial"]}, {"id": "t_energy_atomic", "name": "Атомная энергетика", "branch": "energy", "era": "atomic", "prereqs": ["t_energy_modern", "t_science_modern"]}, {"id": "t_energy_information", "name": "Возобновляемая энергетика", "branch": "energy", "era": "information", "prereqs": ["t_energy_atomic"]}, {"id": "t_energy_digital", "name": "Водородная энергетика", "branch": "energy", "era": "digital", "prereqs": ["t_energy_information"]}, {"id": "t_energy_future", "name": "Термоядерный синтез", "branch": "energy", "era": "future", "prereqs": ["t_energy_digital"]}, {"id": "t_transport_stone", "name": "Колесо", "branch": "transport", "era": "stone", "prereqs": []}, {"id": "t_transport_antiquity", "name": "Дорожное строительство", "branch": "transport", "era": "antiquity", "prereqs": ["t_transport_stone"]}, {"id": "t_transport_exploration", "name": "Почтовые тракты", "branch": "transport", "era": "exploration", "prereqs": ["t_transport_antiquity"]}, {"id": "t_transport_industrial_rev", "name": "Железные дороги", "branch": "transport", "era": "industrial_rev", "prereqs": ["t_transport_exploration", "t_materials_high_medieval"]}, {"id": "t_transport_industrial", "name": "Автомобилестроение", "branch": "transport", "era": "industrial", "prereqs": ["t_transport_industrial_rev"]}, {"id": "t_transport_modern", "name": "Скоростные автомагистрали", "branch": "transport", "era": "modern", "prereqs": ["t_transport_industrial"]}, {"id": "t_transport_atomic", "name": "Реактивный транспорт", "branch": "transport", "era": "atomic", "prereqs": ["t_transport_modern"]}, {"id": "t_transport_information", "name": "Высокоскоростные поезда", "branch": "transport", "era": "information", "prereqs": ["t_transport_atomic"]}, {"id": "t_transport_digital", "name": "Электромобили", "branch": "transport", "era": "digital", "prereqs": ["t_transport_information"]}, {"id": "t_transport_future", "name": "Автономный транспорт", "branch": "transport", "era": "future", "prereqs": ["t_transport_digital"]}, {"id": "t_communication_stone", "name": "Устный счёт и знаковые системы", "branch": "communication", "era": "stone", "prereqs": []}, {"id": "t_communication_bronze", "name": "Письменность", "branch": "communication", "era": "bronze", "prereqs": ["t_communication_stone"]}, {"id": "t_communication_early_medieval", "name": "Бумага", "branch": "communication", "era": "early_medieval", "prereqs": ["t_communication_bronze"]}, {"id": "t_communication_high_medieval", "name": "Ксилографическая печать", "branch": "communication", "era": "high_medieval", "prereqs": ["t_communication_early_medieval"]}, {"id": "t_communication_renaissance", "name": "Печатный станок", "branch": "communication", "era": "renaissance", "prereqs": ["t_communication_high_medieval"]}, {"id": "t_communication_industrial_rev", "name": "Телеграф", "branch": "communication", "era": "industrial_rev", "prereqs": ["t_communication_renaissance"]}, {"id": "t_communication_industrial", "name": "Телефон", "branch": "communication", "era": "industrial", "prereqs": ["t_communication_industrial_rev"]}, {"id": "t_communication_modern", "name": "Радиосвязь", "branch": "communication", "era": "modern", "prereqs": ["t_communication_industrial"]}, {"id": "t_communication_atomic", "name": "Телевидение", "branch": "communication", "era": "atomic", "prereqs": ["t_communication_modern", "t_computing_modern"]}, {"id": "t_communication_information", "name": "Интернет", "branch": "communication", "era": "information", "prereqs": ["t_communication_atomic"]}, {"id": "t_communication_digital", "name": "Мобильная связь", "branch": "communication", "era": "digital", "prereqs": ["t_communication_information"]}, {"id": "t_communication_future", "name": "Нейроинтерфейсы связи", "branch": "communication", "era": "future", "prereqs": ["t_communication_digital"]}, {"id": "t_economy_bronze", "name": "Чеканка монеты", "branch": "economy", "era": "bronze", "prereqs": []}, {"id": "t_economy_early_medieval", "name": "Вексель и кредит", "branch": "economy", "era": "early_medieval", "prereqs": ["t_economy_bronze"]}, {"id": "t_economy_high_medieval", "name": "Банковское дело", "branch": "economy", "era": "high_medieval", "prereqs": ["t_economy_early_medieval"]}, {"id": "t_economy_exploration", "name": "Двойная бухгалтерия", "branch": "economy", "era": "exploration", "prereqs": ["t_economy_high_medieval"]}, {"id": "t_economy_renaissance", "name": "Акционерные компании", "branch": "economy", "era": "renaissance", "prereqs": ["t_economy_exploration"]}, {"id": "t_economy_enlightenment", "name": "Биржи и страхование", "branch": "economy", "era": "enlightenment", "prereqs": ["t_economy_renaissance"]}, {"id": "t_economy_industrial", "name": "Индустриальный финансовый капитал", "branch": "economy", "era": "industrial", "prereqs": ["t_economy_enlightenment"]}, {"id": "t_economy_modern", "name": "Массовое потребление", "branch": "economy", "era": "modern", "prereqs": ["t_economy_industrial"]}, {"id": "t_economy_information", "name": "Цифровая экономика", "branch": "economy", "era": "information", "prereqs": ["t_economy_modern"]}, {"id": "t_economy_digital", "name": "Криптовалюты и блокчейн", "branch": "economy", "era": "digital", "prereqs": ["t_economy_information"]}, {"id": "t_economy_future", "name": "Постдефицитная экономика", "branch": "economy", "era": "future", "prereqs": ["t_economy_digital"]}, {"id": "t_industry_exploration", "name": "Мануфактурное производство", "branch": "industry", "era": "exploration", "prereqs": []}, {"id": "t_industry_industrial_rev", "name": "Фабричное производство", "branch": "industry", "era": "industrial_rev", "prereqs": ["t_industry_exploration"]}, {"id": "t_industry_industrial", "name": "Конвейерное производство", "branch": "industry", "era": "industrial", "prereqs": ["t_industry_industrial_rev"]}, {"id": "t_industry_modern", "name": "Автоматизация производства", "branch": "industry", "era": "modern", "prereqs": ["t_industry_industrial"]}, {"id": "t_industry_atomic", "name": "Автоматизированные линии", "branch": "industry", "era": "atomic", "prereqs": ["t_industry_modern"]}, {"id": "t_industry_information", "name": "Промышленные роботы", "branch": "industry", "era": "information", "prereqs": ["t_industry_atomic", "t_computing_atomic"]}, {"id": "t_industry_digital", "name": "Аддитивное производство (3D-печать)", "branch": "industry", "era": "digital", "prereqs": ["t_industry_information"]}, {"id": "t_industry_future", "name": "Автономные фабрики", "branch": "industry", "era": "future", "prereqs": ["t_industry_digital"]}, {"id": "t_aviation_renaissance", "name": "Аэростаты", "branch": "aviation", "era": "renaissance", "prereqs": []}, {"id": "t_aviation_industrial_rev", "name": "Управляемые дирижабли", "branch": "aviation", "era": "industrial_rev", "prereqs": ["t_aviation_renaissance"]}, {"id": "t_aviation_modern", "name": "Самолёты", "branch": "aviation", "era": "modern", "prereqs": ["t_aviation_industrial_rev", "t_energy_industrial"]}, {"id": "t_aviation_atomic", "name": "Реактивная авиация", "branch": "aviation", "era": "atomic", "prereqs": ["t_aviation_modern"]}, {"id": "t_aviation_information", "name": "Орбитальные спутники", "branch": "aviation", "era": "information", "prereqs": ["t_aviation_atomic"]}, {"id": "t_aviation_digital", "name": "Пилотируемые межпланетные миссии", "branch": "aviation", "era": "digital", "prereqs": ["t_aviation_information", "t_computing_information"]}, {"id": "t_aviation_future", "name": "Космическая колонизация", "branch": "aviation", "era": "future", "prereqs": ["t_aviation_digital"]}, {"id": "t_chemistry_exploration", "name": "Ранняя химия", "branch": "chemistry", "era": "exploration", "prereqs": []}, {"id": "t_chemistry_enlightenment", "name": "Химия как наука", "branch": "chemistry", "era": "enlightenment", "prereqs": ["t_chemistry_exploration"]}, {"id": "t_chemistry_industrial_rev", "name": "Промышленная химия", "branch": "chemistry", "era": "industrial_rev", "prereqs": ["t_chemistry_enlightenment", "t_materials_high_medieval"]}, {"id": "t_chemistry_industrial", "name": "Органическая химия", "branch": "chemistry", "era": "industrial", "prereqs": ["t_chemistry_industrial_rev"]}, {"id": "t_chemistry_modern", "name": "Химия полимеров", "branch": "chemistry", "era": "modern", "prereqs": ["t_chemistry_industrial"]}, {"id": "t_chemistry_atomic", "name": "Радиохимия", "branch": "chemistry", "era": "atomic", "prereqs": ["t_chemistry_modern"]}, {"id": "t_chemistry_information", "name": "Нефтехимия", "branch": "chemistry", "era": "information", "prereqs": ["t_chemistry_atomic"]}, {"id": "t_chemistry_digital", "name": "Зелёная химия", "branch": "chemistry", "era": "digital", "prereqs": ["t_chemistry_information"]}, {"id": "t_chemistry_future", "name": "Молекулярная инженерия", "branch": "chemistry", "era": "future", "prereqs": ["t_chemistry_digital"]}, {"id": "t_computing_enlightenment", "name": "Счётные машины", "branch": "computing", "era": "enlightenment", "prereqs": []}, {"id": "t_computing_industrial", "name": "Табуляторы и перфокарты", "branch": "computing", "era": "industrial", "prereqs": ["t_computing_enlightenment"]}, {"id": "t_computing_modern", "name": "Электромеханические вычислители", "branch": "computing", "era": "modern", "prereqs": ["t_computing_industrial"]}, {"id": "t_computing_atomic", "name": "Электронные вычислительные машины", "branch": "computing", "era": "atomic", "prereqs": ["t_computing_modern", "t_science_modern"]}, {"id": "t_computing_information", "name": "Персональные компьютеры и интернет-протоколы", "branch": "computing", "era": "information", "prereqs": ["t_computing_atomic", "t_materials_atomic"]}, {"id": "t_computing_digital", "name": "Машинное обучение", "branch": "computing", "era": "digital", "prereqs": ["t_computing_information"]}, {"id": "t_computing_future", "name": "Искусственный интеллект общего назначения", "branch": "computing", "era": "future", "prereqs": ["t_computing_digital"]}, {"id": "t_biotech_modern", "name": "Основы генетики", "branch": "biotech", "era": "modern", "prereqs": []}, {"id": "t_biotech_atomic", "name": "Молекулярная биология (ДНК)", "branch": "biotech", "era": "atomic", "prereqs": ["t_biotech_modern", "t_medicine_modern"]}, {"id": "t_biotech_information", "name": "Генная инженерия", "branch": "biotech", "era": "information", "prereqs": ["t_biotech_atomic"]}, {"id": "t_biotech_digital", "name": "Секвенирование генома", "branch": "biotech", "era": "digital", "prereqs": ["t_biotech_information"]}, {"id": "t_biotech_future", "name": "Синтетическая биология", "branch": "biotech", "era": "future", "prereqs": ["t_biotech_digital"]}]};
+const CIVIC_DATA = {"eras": [{"id": "stone", "name": "Каменный век", "order": 0}, {"id": "bronze", "name": "Бронзовый век", "order": 1}, {"id": "antiquity", "name": "Античность", "order": 2}, {"id": "early_medieval", "name": "Раннее Средневековье", "order": 3}, {"id": "high_medieval", "name": "Высокое Средневековье", "order": 4}, {"id": "exploration", "name": "Эпоха исследований", "order": 5}, {"id": "renaissance", "name": "Возрождение", "order": 6}, {"id": "enlightenment", "name": "Просвещение", "order": 7}, {"id": "industrial_rev", "name": "Промышленная революция", "order": 8}, {"id": "industrial", "name": "Индустриальная эра", "order": 9}, {"id": "modern", "name": "Новое время", "order": 10}, {"id": "atomic", "name": "Атомная эра", "order": 11}, {"id": "information", "name": "Информационная эра", "order": 12}, {"id": "digital", "name": "Цифровая эра", "order": 13}, {"id": "future", "name": "Будущее", "order": 14}], "branches": [{"id": "governance", "name": "Управление и государство", "color": "#5c6bc0"}, {"id": "law", "name": "Право и правосудие", "color": "#8d6e63"}, {"id": "religion", "name": "Религия и верования", "color": "#ba68c8"}, {"id": "military_doctrine", "name": "Военная организация", "color": "#e57373"}, {"id": "economy_social", "name": "Экономика и торговля", "color": "#c0ca33"}, {"id": "education", "name": "Образование", "color": "#26a69a"}, {"id": "arts", "name": "Культура и искусство", "color": "#f06292"}, {"id": "diplomacy", "name": "Дипломатия", "color": "#4fc3f7"}, {"id": "society", "name": "Общество и права", "color": "#66bb6a"}, {"id": "urbanism", "name": "Городская жизнь", "color": "#a1887f"}, {"id": "media", "name": "Медиа и коммуникация", "color": "#29b6f6"}, {"id": "ideology", "name": "Идеологии", "color": "#ef6c00"}, {"id": "future_society", "name": "Этика будущего", "color": "#ab47bc"}], "nodes": [{"id": "c_governance_stone", "name": "Вождество", "branch": "governance", "era": "stone", "prereqs": []}, {"id": "c_governance_bronze", "name": "Протогосударства", "branch": "governance", "era": "bronze", "prereqs": ["c_governance_stone"]}, {"id": "c_governance_antiquity", "name": "Полис и гражданство", "branch": "governance", "era": "antiquity", "prereqs": ["c_governance_bronze"]}, {"id": "c_governance_early_medieval", "name": "Раннефеодальная монархия", "branch": "governance", "era": "early_medieval", "prereqs": ["c_governance_antiquity"]}, {"id": "c_governance_high_medieval", "name": "Сословная монархия", "branch": "governance", "era": "high_medieval", "prereqs": ["c_governance_early_medieval"]}, {"id": "c_governance_exploration", "name": "Централизация власти", "branch": "governance", "era": "exploration", "prereqs": ["c_governance_high_medieval"]}, {"id": "c_governance_renaissance", "name": "Абсолютизм", "branch": "governance", "era": "renaissance", "prereqs": ["c_governance_exploration"]}, {"id": "c_governance_enlightenment", "name": "Конституционная монархия", "branch": "governance", "era": "enlightenment", "prereqs": ["c_governance_renaissance", "c_law_renaissance"]}, {"id": "c_governance_industrial_rev", "name": "Парламентаризм", "branch": "governance", "era": "industrial_rev", "prereqs": ["c_governance_enlightenment"]}, {"id": "c_governance_industrial", "name": "Национальное государство", "branch": "governance", "era": "industrial", "prereqs": ["c_governance_industrial_rev"]}, {"id": "c_governance_modern", "name": "Массовая демократия и тоталитаризм", "branch": "governance", "era": "modern", "prereqs": ["c_governance_industrial"]}, {"id": "c_governance_atomic", "name": "Государство благосостояния", "branch": "governance", "era": "atomic", "prereqs": ["c_governance_modern"]}, {"id": "c_governance_information", "name": "Электронное правительство", "branch": "governance", "era": "information", "prereqs": ["c_governance_atomic", "c_media_industrial"]}, {"id": "c_governance_digital", "name": "Сетевая демократия", "branch": "governance", "era": "digital", "prereqs": ["c_governance_information"]}, {"id": "c_governance_future", "name": "Глобальное управление", "branch": "governance", "era": "future", "prereqs": ["c_governance_digital"]}, {"id": "c_law_stone", "name": "Обычное право", "branch": "law", "era": "stone", "prereqs": []}, {"id": "c_law_bronze", "name": "Писаные своды законов", "branch": "law", "era": "bronze", "prereqs": ["c_law_stone"]}, {"id": "c_law_antiquity", "name": "Гражданское право", "branch": "law", "era": "antiquity", "prereqs": ["c_law_bronze"]}, {"id": "c_law_early_medieval", "name": "Каноническое право", "branch": "law", "era": "early_medieval", "prereqs": ["c_law_antiquity"]}, {"id": "c_law_high_medieval", "name": "Городское право", "branch": "law", "era": "high_medieval", "prereqs": ["c_law_early_medieval"]}, {"id": "c_law_exploration", "name": "Морское право", "branch": "law", "era": "exploration", "prereqs": ["c_law_high_medieval"]}, {"id": "c_law_renaissance", "name": "Естественное право", "branch": "law", "era": "renaissance", "prereqs": ["c_law_exploration"]}, {"id": "c_law_enlightenment", "name": "Конституционное право", "branch": "law", "era": "enlightenment", "prereqs": ["c_law_renaissance"]}, {"id": "c_law_industrial_rev", "name": "Международное право", "branch": "law", "era": "industrial_rev", "prereqs": ["c_law_enlightenment"]}, {"id": "c_law_industrial", "name": "Трудовое законодательство", "branch": "law", "era": "industrial", "prereqs": ["c_law_industrial_rev"]}, {"id": "c_law_modern", "name": "Декларации прав человека", "branch": "law", "era": "modern", "prereqs": ["c_law_industrial", "c_society_industrial"]}, {"id": "c_law_atomic", "name": "Международное гуманитарное право", "branch": "law", "era": "atomic", "prereqs": ["c_law_modern"]}, {"id": "c_law_information", "name": "Цифровое право", "branch": "law", "era": "information", "prereqs": ["c_law_atomic"]}, {"id": "c_law_digital", "name": "Право искусственного интеллекта", "branch": "law", "era": "digital", "prereqs": ["c_law_information"]}, {"id": "c_law_future", "name": "Космическое право", "branch": "law", "era": "future", "prereqs": ["c_law_digital"]}, {"id": "c_religion_stone", "name": "Анимизм и тотемизм", "branch": "religion", "era": "stone", "prereqs": []}, {"id": "c_religion_bronze", "name": "Пантеон богов и жречество", "branch": "religion", "era": "bronze", "prereqs": ["c_religion_stone"]}, {"id": "c_religion_antiquity", "name": "Организованная религия", "branch": "religion", "era": "antiquity", "prereqs": ["c_religion_bronze"]}, {"id": "c_religion_early_medieval", "name": "Монотеистическая церковь", "branch": "religion", "era": "early_medieval", "prereqs": ["c_religion_antiquity"]}, {"id": "c_religion_high_medieval", "name": "Монашеские ордена", "branch": "religion", "era": "high_medieval", "prereqs": ["c_religion_early_medieval"]}, {"id": "c_religion_exploration", "name": "Религиозные реформы", "branch": "religion", "era": "exploration", "prereqs": ["c_religion_high_medieval"]}, {"id": "c_religion_renaissance", "name": "Реформация и Контрреформация", "branch": "religion", "era": "renaissance", "prereqs": ["c_religion_exploration"]}, {"id": "c_religion_enlightenment", "name": "Религиозная терпимость", "branch": "religion", "era": "enlightenment", "prereqs": ["c_religion_renaissance"]}, {"id": "c_religion_industrial_rev", "name": "Секуляризация государства", "branch": "religion", "era": "industrial_rev", "prereqs": ["c_religion_enlightenment"]}, {"id": "c_religion_industrial", "name": "Религиозная благотворительность", "branch": "religion", "era": "industrial", "prereqs": ["c_religion_industrial_rev"]}, {"id": "c_religion_atomic", "name": "Экуменизм", "branch": "religion", "era": "atomic", "prereqs": ["c_religion_industrial"]}, {"id": "c_religion_digital", "name": "Техно-религии", "branch": "religion", "era": "digital", "prereqs": ["c_religion_atomic"]}, {"id": "c_religion_future", "name": "Постчеловеческая духовность", "branch": "religion", "era": "future", "prereqs": ["c_religion_digital"]}, {"id": "c_military_doctrine_stone", "name": "Родовое ополчение", "branch": "military_doctrine", "era": "stone", "prereqs": []}, {"id": "c_military_doctrine_bronze", "name": "Дружина и военные вожди", "branch": "military_doctrine", "era": "bronze", "prereqs": ["c_military_doctrine_stone"]}, {"id": "c_military_doctrine_antiquity", "name": "Профессиональная армия", "branch": "military_doctrine", "era": "antiquity", "prereqs": ["c_military_doctrine_bronze"]}, {"id": "c_military_doctrine_early_medieval", "name": "Вассальное рыцарское войско", "branch": "military_doctrine", "era": "early_medieval", "prereqs": ["c_military_doctrine_antiquity"]}, {"id": "c_military_doctrine_high_medieval", "name": "Наёмные отряды", "branch": "military_doctrine", "era": "high_medieval", "prereqs": ["c_military_doctrine_early_medieval"]}, {"id": "c_military_doctrine_exploration", "name": "Постоянная королевская армия", "branch": "military_doctrine", "era": "exploration", "prereqs": ["c_military_doctrine_high_medieval"]}, {"id": "c_military_doctrine_renaissance", "name": "Линейная тактика", "branch": "military_doctrine", "era": "renaissance", "prereqs": ["c_military_doctrine_exploration"]}, {"id": "c_military_doctrine_enlightenment", "name": "Всеобщая воинская повинность", "branch": "military_doctrine", "era": "enlightenment", "prereqs": ["c_military_doctrine_renaissance"]}, {"id": "c_military_doctrine_industrial_rev", "name": "Массовая мобилизация", "branch": "military_doctrine", "era": "industrial_rev", "prereqs": ["c_military_doctrine_enlightenment"]}, {"id": "c_military_doctrine_industrial", "name": "Тотальная война", "branch": "military_doctrine", "era": "industrial", "prereqs": ["c_military_doctrine_industrial_rev"]}, {"id": "c_military_doctrine_modern", "name": "Доктрины сдерживания", "branch": "military_doctrine", "era": "modern", "prereqs": ["c_military_doctrine_industrial", "c_governance_industrial"]}, {"id": "c_military_doctrine_atomic", "name": "Асимметричные конфликты", "branch": "military_doctrine", "era": "atomic", "prereqs": ["c_military_doctrine_modern"]}, {"id": "c_military_doctrine_information", "name": "Сетецентрическая война", "branch": "military_doctrine", "era": "information", "prereqs": ["c_military_doctrine_atomic"]}, {"id": "c_military_doctrine_future", "name": "Автономные военные системы", "branch": "military_doctrine", "era": "future", "prereqs": ["c_military_doctrine_information"]}, {"id": "c_economy_social_stone", "name": "Бартер и ранний обмен", "branch": "economy_social", "era": "stone", "prereqs": []}, {"id": "c_economy_social_bronze", "name": "Общественная роль денег", "branch": "economy_social", "era": "bronze", "prereqs": ["c_economy_social_stone"]}, {"id": "c_economy_social_antiquity", "name": "Налоговая система", "branch": "economy_social", "era": "antiquity", "prereqs": ["c_economy_social_bronze"]}, {"id": "c_economy_social_early_medieval", "name": "Феодальная рента", "branch": "economy_social", "era": "early_medieval", "prereqs": ["c_economy_social_antiquity"]}, {"id": "c_economy_social_high_medieval", "name": "Гильдии и цеха", "branch": "economy_social", "era": "high_medieval", "prereqs": ["c_economy_social_early_medieval"]}, {"id": "c_economy_social_exploration", "name": "Меркантилизм", "branch": "economy_social", "era": "exploration", "prereqs": ["c_economy_social_high_medieval"]}, {"id": "c_economy_social_renaissance", "name": "Торговые компании", "branch": "economy_social", "era": "renaissance", "prereqs": ["c_economy_social_exploration"]}, {"id": "c_economy_social_enlightenment", "name": "Свободный рынок", "branch": "economy_social", "era": "enlightenment", "prereqs": ["c_economy_social_renaissance"]}, {"id": "c_economy_social_industrial_rev", "name": "Индустриальный капитализм", "branch": "economy_social", "era": "industrial_rev", "prereqs": ["c_economy_social_enlightenment"]}, {"id": "c_economy_social_industrial", "name": "Профсоюзное движение", "branch": "economy_social", "era": "industrial", "prereqs": ["c_economy_social_industrial_rev"]}, {"id": "c_economy_social_modern", "name": "Плановая vs рыночная экономика", "branch": "economy_social", "era": "modern", "prereqs": ["c_economy_social_industrial"]}, {"id": "c_economy_social_atomic", "name": "Общество потребления", "branch": "economy_social", "era": "atomic", "prereqs": ["c_economy_social_modern"]}, {"id": "c_economy_social_information", "name": "Глобализация", "branch": "economy_social", "era": "information", "prereqs": ["c_economy_social_atomic", "c_governance_atomic"]}, {"id": "c_economy_social_digital", "name": "Гиг-экономика", "branch": "economy_social", "era": "digital", "prereqs": ["c_economy_social_information"]}, {"id": "c_economy_social_future", "name": "Постдефицитная экономика", "branch": "economy_social", "era": "future", "prereqs": ["c_economy_social_digital"]}, {"id": "c_education_stone", "name": "Устная передача знаний", "branch": "education", "era": "stone", "prereqs": []}, {"id": "c_education_bronze", "name": "Школы писцов", "branch": "education", "era": "bronze", "prereqs": ["c_education_stone"]}, {"id": "c_education_antiquity", "name": "Философские школы", "branch": "education", "era": "antiquity", "prereqs": ["c_education_bronze"]}, {"id": "c_education_early_medieval", "name": "Монастырские школы", "branch": "education", "era": "early_medieval", "prereqs": ["c_education_antiquity"]}, {"id": "c_education_high_medieval", "name": "Университеты", "branch": "education", "era": "high_medieval", "prereqs": ["c_education_early_medieval"]}, {"id": "c_education_exploration", "name": "Гуманитарное образование", "branch": "education", "era": "exploration", "prereqs": ["c_education_high_medieval"]}, {"id": "c_education_renaissance", "name": "Научные академии", "branch": "education", "era": "renaissance", "prereqs": ["c_education_exploration"]}, {"id": "c_education_enlightenment", "name": "Энциклопедизм", "branch": "education", "era": "enlightenment", "prereqs": ["c_education_renaissance"]}, {"id": "c_education_industrial_rev", "name": "Всеобщее школьное образование", "branch": "education", "era": "industrial_rev", "prereqs": ["c_education_enlightenment"]}, {"id": "c_education_industrial", "name": "Массовое высшее образование", "branch": "education", "era": "industrial", "prereqs": ["c_education_industrial_rev"]}, {"id": "c_education_modern", "name": "Государственные системы образования", "branch": "education", "era": "modern", "prereqs": ["c_education_industrial"]}, {"id": "c_education_information", "name": "Дистанционное образование", "branch": "education", "era": "information", "prereqs": ["c_education_modern"]}, {"id": "c_education_digital", "name": "Открытые онлайн-курсы", "branch": "education", "era": "digital", "prereqs": ["c_education_information"]}, {"id": "c_education_future", "name": "Обучение через нейроинтерфейсы", "branch": "education", "era": "future", "prereqs": ["c_education_digital"]}, {"id": "c_arts_stone", "name": "Наскальное искусство и обряды", "branch": "arts", "era": "stone", "prereqs": []}, {"id": "c_arts_bronze", "name": "Эпическая поэзия и мифотворчество", "branch": "arts", "era": "bronze", "prereqs": ["c_arts_stone"]}, {"id": "c_arts_antiquity", "name": "Театр и скульптура", "branch": "arts", "era": "antiquity", "prereqs": ["c_arts_bronze"]}, {"id": "c_arts_early_medieval", "name": "Иконопись", "branch": "arts", "era": "early_medieval", "prereqs": ["c_arts_antiquity"]}, {"id": "c_arts_high_medieval", "name": "Куртуазная культура", "branch": "arts", "era": "high_medieval", "prereqs": ["c_arts_early_medieval"]}, {"id": "c_arts_exploration", "name": "Искусство раннего Возрождения", "branch": "arts", "era": "exploration", "prereqs": ["c_arts_high_medieval"]}, {"id": "c_arts_renaissance", "name": "Искусство высокого Возрождения", "branch": "arts", "era": "renaissance", "prereqs": ["c_arts_exploration"]}, {"id": "c_arts_enlightenment", "name": "Барокко и классицизм", "branch": "arts", "era": "enlightenment", "prereqs": ["c_arts_renaissance"]}, {"id": "c_arts_industrial_rev", "name": "Романтизм", "branch": "arts", "era": "industrial_rev", "prereqs": ["c_arts_enlightenment"]}, {"id": "c_arts_industrial", "name": "Реализм и импрессионизм", "branch": "arts", "era": "industrial", "prereqs": ["c_arts_industrial_rev"]}, {"id": "c_arts_modern", "name": "Модернизм", "branch": "arts", "era": "modern", "prereqs": ["c_arts_industrial"]}, {"id": "c_arts_atomic", "name": "Массовая культура", "branch": "arts", "era": "atomic", "prereqs": ["c_arts_modern"]}, {"id": "c_arts_information", "name": "Постмодернизм", "branch": "arts", "era": "information", "prereqs": ["c_arts_atomic"]}, {"id": "c_arts_digital", "name": "Цифровое и медиаискусство", "branch": "arts", "era": "digital", "prereqs": ["c_arts_information"]}, {"id": "c_arts_future", "name": "Генеративное ИИ-искусство", "branch": "arts", "era": "future", "prereqs": ["c_arts_digital"]}, {"id": "c_diplomacy_stone", "name": "Межплеменные союзы", "branch": "diplomacy", "era": "stone", "prereqs": []}, {"id": "c_diplomacy_bronze", "name": "Династические союзы", "branch": "diplomacy", "era": "bronze", "prereqs": ["c_diplomacy_stone"]}, {"id": "c_diplomacy_antiquity", "name": "Посольства древнего мира", "branch": "diplomacy", "era": "antiquity", "prereqs": ["c_diplomacy_bronze"]}, {"id": "c_diplomacy_early_medieval", "name": "Династические браки", "branch": "diplomacy", "era": "early_medieval", "prereqs": ["c_diplomacy_antiquity"]}, {"id": "c_diplomacy_high_medieval", "name": "Папская дипломатия", "branch": "diplomacy", "era": "high_medieval", "prereqs": ["c_diplomacy_early_medieval"]}, {"id": "c_diplomacy_exploration", "name": "Постоянные посольства", "branch": "diplomacy", "era": "exploration", "prereqs": ["c_diplomacy_high_medieval"]}, {"id": "c_diplomacy_renaissance", "name": "Баланс сил", "branch": "diplomacy", "era": "renaissance", "prereqs": ["c_diplomacy_exploration"]}, {"id": "c_diplomacy_enlightenment", "name": "Вестфальский суверенитет", "branch": "diplomacy", "era": "enlightenment", "prereqs": ["c_diplomacy_renaissance"]}, {"id": "c_diplomacy_industrial_rev", "name": "Конгрессная дипломатия", "branch": "diplomacy", "era": "industrial_rev", "prereqs": ["c_diplomacy_enlightenment"]}, {"id": "c_diplomacy_industrial", "name": "Альянсы и блоки", "branch": "diplomacy", "era": "industrial", "prereqs": ["c_diplomacy_industrial_rev"]}, {"id": "c_diplomacy_modern", "name": "Международные организации", "branch": "diplomacy", "era": "modern", "prereqs": ["c_diplomacy_industrial", "c_governance_industrial"]}, {"id": "c_diplomacy_atomic", "name": "Биполярная дипломатия", "branch": "diplomacy", "era": "atomic", "prereqs": ["c_diplomacy_modern"]}, {"id": "c_diplomacy_information", "name": "Многосторонняя дипломатия", "branch": "diplomacy", "era": "information", "prereqs": ["c_diplomacy_atomic"]}, {"id": "c_diplomacy_digital", "name": "Цифровая дипломатия", "branch": "diplomacy", "era": "digital", "prereqs": ["c_diplomacy_information"]}, {"id": "c_diplomacy_future", "name": "Межпланетная дипломатия", "branch": "diplomacy", "era": "future", "prereqs": ["c_diplomacy_digital"]}, {"id": "c_society_stone", "name": "Родовые кланы", "branch": "society", "era": "stone", "prereqs": []}, {"id": "c_society_bronze", "name": "Сословное деление", "branch": "society", "era": "bronze", "prereqs": ["c_society_stone"]}, {"id": "c_society_antiquity", "name": "Гражданство и свобода", "branch": "society", "era": "antiquity", "prereqs": ["c_society_bronze"]}, {"id": "c_society_early_medieval", "name": "Крепостное право", "branch": "society", "era": "early_medieval", "prereqs": ["c_society_antiquity"]}, {"id": "c_society_high_medieval", "name": "Городские вольности", "branch": "society", "era": "high_medieval", "prereqs": ["c_society_early_medieval"]}, {"id": "c_society_exploration", "name": "Колониальное общество", "branch": "society", "era": "exploration", "prereqs": ["c_society_high_medieval"]}, {"id": "c_society_renaissance", "name": "Сословное представительство", "branch": "society", "era": "renaissance", "prereqs": ["c_society_exploration"]}, {"id": "c_society_enlightenment", "name": "Идеи равенства", "branch": "society", "era": "enlightenment", "prereqs": ["c_society_renaissance"]}, {"id": "c_society_industrial_rev", "name": "Аболиционизм", "branch": "society", "era": "industrial_rev", "prereqs": ["c_society_enlightenment", "c_religion_enlightenment", "c_ideology_enlightenment"]}, {"id": "c_society_industrial", "name": "Суфражизм и ранний феминизм", "branch": "society", "era": "industrial", "prereqs": ["c_society_industrial_rev"]}, {"id": "c_society_modern", "name": "Движение за гражданские права", "branch": "society", "era": "modern", "prereqs": ["c_society_industrial"]}, {"id": "c_society_atomic", "name": "Права меньшинств", "branch": "society", "era": "atomic", "prereqs": ["c_society_modern"]}, {"id": "c_society_information", "name": "Мультикультурализм", "branch": "society", "era": "information", "prereqs": ["c_society_atomic"]}, {"id": "c_society_digital", "name": "Цифровые права и приватность", "branch": "society", "era": "digital", "prereqs": ["c_society_information"]}, {"id": "c_society_future", "name": "Права ИИ и постчеловеческая этика", "branch": "society", "era": "future", "prereqs": ["c_society_digital"]}, {"id": "c_urbanism_bronze", "name": "Городская община", "branch": "urbanism", "era": "bronze", "prereqs": []}, {"id": "c_urbanism_antiquity", "name": "Городское планирование античности", "branch": "urbanism", "era": "antiquity", "prereqs": ["c_urbanism_bronze"]}, {"id": "c_urbanism_high_medieval", "name": "Средневековый город", "branch": "urbanism", "era": "high_medieval", "prereqs": ["c_urbanism_antiquity"]}, {"id": "c_urbanism_renaissance", "name": "Городская буржуазия", "branch": "urbanism", "era": "renaissance", "prereqs": ["c_urbanism_high_medieval"]}, {"id": "c_urbanism_industrial_rev", "name": "Индустриальный город", "branch": "urbanism", "era": "industrial_rev", "prereqs": ["c_urbanism_renaissance"]}, {"id": "c_urbanism_industrial", "name": "Городская санитария", "branch": "urbanism", "era": "industrial", "prereqs": ["c_urbanism_industrial_rev"]}, {"id": "c_urbanism_modern", "name": "Городское планирование модернизма", "branch": "urbanism", "era": "modern", "prereqs": ["c_urbanism_industrial"]}, {"id": "c_urbanism_atomic", "name": "Мегаполисы", "branch": "urbanism", "era": "atomic", "prereqs": ["c_urbanism_modern"]}, {"id": "c_urbanism_information", "name": "Умные города", "branch": "urbanism", "era": "information", "prereqs": ["c_urbanism_atomic"]}, {"id": "c_urbanism_digital", "name": "Городские экосистемы", "branch": "urbanism", "era": "digital", "prereqs": ["c_urbanism_information"]}, {"id": "c_urbanism_future", "name": "Космические поселения", "branch": "urbanism", "era": "future", "prereqs": ["c_urbanism_digital"]}, {"id": "c_media_bronze", "name": "Устная агитация и ораторство", "branch": "media", "era": "bronze", "prereqs": []}, {"id": "c_media_early_medieval", "name": "Летописи и хроники", "branch": "media", "era": "early_medieval", "prereqs": ["c_media_bronze"]}, {"id": "c_media_exploration", "name": "Печатные памфлеты", "branch": "media", "era": "exploration", "prereqs": ["c_media_early_medieval"]}, {"id": "c_media_enlightenment", "name": "Пресса и журналистика", "branch": "media", "era": "enlightenment", "prereqs": ["c_media_exploration"]}, {"id": "c_media_industrial_rev", "name": "Массовая пресса", "branch": "media", "era": "industrial_rev", "prereqs": ["c_media_enlightenment"]}, {"id": "c_media_industrial", "name": "Радиовещание", "branch": "media", "era": "industrial", "prereqs": ["c_media_industrial_rev", "c_education_industrial_rev"]}, {"id": "c_media_modern", "name": "Телевидение и пропаганда", "branch": "media", "era": "modern", "prereqs": ["c_media_industrial"]}, {"id": "c_media_atomic", "name": "Спутниковое вещание", "branch": "media", "era": "atomic", "prereqs": ["c_media_modern"]}, {"id": "c_media_information", "name": "Интернет-СМИ", "branch": "media", "era": "information", "prereqs": ["c_media_atomic"]}, {"id": "c_media_digital", "name": "Социальные сети", "branch": "media", "era": "digital", "prereqs": ["c_media_information"]}, {"id": "c_media_future", "name": "Синтетические ИИ-медиа", "branch": "media", "era": "future", "prereqs": ["c_media_digital"]}, {"id": "c_ideology_renaissance", "name": "Республиканизм Нового времени", "branch": "ideology", "era": "renaissance", "prereqs": []}, {"id": "c_ideology_enlightenment", "name": "Либерализм", "branch": "ideology", "era": "enlightenment", "prereqs": ["c_ideology_renaissance", "c_education_renaissance"]}, {"id": "c_ideology_industrial_rev", "name": "Национализм", "branch": "ideology", "era": "industrial_rev", "prereqs": ["c_ideology_enlightenment"]}, {"id": "c_ideology_industrial", "name": "Консерватизм", "branch": "ideology", "era": "industrial", "prereqs": ["c_ideology_industrial_rev"]}, {"id": "c_ideology_modern", "name": "Тоталитарные идеологии", "branch": "ideology", "era": "modern", "prereqs": ["c_ideology_industrial"]}, {"id": "c_ideology_atomic", "name": "Либеральная демократия vs авторитаризм", "branch": "ideology", "era": "atomic", "prereqs": ["c_ideology_modern"]}, {"id": "c_ideology_information", "name": "Неолиберализм", "branch": "ideology", "era": "information", "prereqs": ["c_ideology_atomic"]}, {"id": "c_ideology_digital", "name": "Цифровой популизм", "branch": "ideology", "era": "digital", "prereqs": ["c_ideology_information"]}, {"id": "c_ideology_future", "name": "Постидеологическое общество", "branch": "ideology", "era": "future", "prereqs": ["c_ideology_digital"]}, {"id": "c_future_society_atomic", "name": "Экологическое сознание", "branch": "future_society", "era": "atomic", "prereqs": []}, {"id": "c_future_society_information", "name": "Устойчивое развитие", "branch": "future_society", "era": "information", "prereqs": ["c_future_society_atomic"]}, {"id": "c_future_society_digital", "name": "Трансгуманизм", "branch": "future_society", "era": "digital", "prereqs": ["c_future_society_information", "c_society_information"]}, {"id": "c_future_society_future", "name": "Этика изобилия", "branch": "future_society", "era": "future", "prereqs": ["c_future_society_digital"]}]};
+(function(){
+"use strict";
+
+const PALETTE = ["#2f6f76","#a85a3a","#8bc34a","#7e57c2","#ef6c00","#26a69a",
+  "#ec407a","#5c6bc0","#c0ca33","#795548","#4fc3f7","#ab47bc","#66bb6a","#e57373"];
+
+function uid(prefix){
+  return prefix + "_" + Math.random().toString(36).slice(2,9);
+}
+
+class TreeApp{
+  constructor(opts){
+    this.root = document.getElementById(opts.mount);
+    this.storageKey = opts.storageKey;
+    this.title = opts.title;
+    this.subtitle = opts.subtitle;
+    this.treeClass = opts.treeClass; // 'tree-sci' | 'tree-cul'
+    this.accent = opts.accent; // 'sci' | 'cul'
+    this.defaultData = opts.data;
+    this.confirmState = null; // for inline confirm-on-second-click
+    this.load();
+    this.renderShell();
+    this.render();
+    window.addEventListener("resize", () => this.drawEdges());
+  }
+
+  load(){
+    let raw = null;
+    try{ raw = localStorage.getItem(this.storageKey); }catch(e){}
+    if(raw){
+      try{
+        const parsed = JSON.parse(raw);
+        this.eras = parsed.eras;
+        this.branches = parsed.branches;
+        this.nodes = parsed.nodes;
+        return;
+      }catch(e){ /* fall through to defaults */ }
+    }
+    this.eras = this.defaultData.eras.map(e => ({...e}));
+    this.branches = this.defaultData.branches.map(b => ({...b}));
+    this.nodes = this.defaultData.nodes.map(n => ({...n, prereqs:[...n.prereqs]}));
+  }
+
+  save(){
+    try{
+      localStorage.setItem(this.storageKey, JSON.stringify({
+        eras:this.eras, branches:this.branches, nodes:this.nodes
+      }));
+    }catch(e){}
+  }
+
+  resetToDefault(){
+    try{ localStorage.removeItem(this.storageKey); }catch(e){}
+    this.load();
+    this.render();
+  }
+
+  eraIndex(eraId){
+    const e = this.eras.find(x => x.id === eraId);
+    return e ? e.order : -1;
+  }
+
+  branchInfo(branchId){
+    return this.branches.find(b => b.id === branchId) || {id:branchId, name:branchId, color:"#888"};
+  }
+
+  nodesByEra(eraId){
+    return this.nodes
+      .filter(n => n.era === eraId)
+      .slice()
+      .sort((a,b) => (a.order||0) - (b.order||0));
+  }
+
+  dependentsOf(nodeId){
+    return this.nodes.filter(n => n.prereqs.includes(nodeId));
+  }
+
+  renderShell(){
+    this.root.innerHTML = `
+      <div class="tree-head">
+        <div>
+          <h2>${this.title}</h2>
+          <div class="sub">${this.subtitle}</div>
+        </div>
+        <div class="toolbar">
+          <button class="primary ${this.accent}" data-act="shuffle">Перемешать</button>
+          <button data-act="add">+ Добавить технологию</button>
+          <button class="ghost" data-act="reset">Сбросить к исходным данным</button>
+        </div>
+      </div>
+      <div class="legend"></div>
+      <div class="board-scroll">
+        <div class="board"><svg class="edges"></svg></div>
+      </div>
+    `;
+    this.root.querySelector('[data-act="shuffle"]').addEventListener("click", () => this.shuffle());
+    this.root.querySelector('[data-act="add"]').addEventListener("click", () => this.openModal("add"));
+    const resetBtn = this.root.querySelector('[data-act="reset"]');
+    resetBtn.addEventListener("click", () => {
+      if(this.confirmState === "reset"){
+        this.resetToDefault();
+        resetBtn.textContent = "Сбросить к исходным данным";
+        this.confirmState = null;
+      } else {
+        this.confirmState = "reset";
+        resetBtn.textContent = "Точно сбросить? Нажмите ещё раз";
+        setTimeout(() => {
+          if(this.confirmState === "reset"){
+            this.confirmState = null;
+            resetBtn.textContent = "Сбросить к исходным данным";
+          }
+        }, 3500);
+      }
+    });
+    this.legendEl = this.root.querySelector(".legend");
+    this.boardScroll = this.root.querySelector(".board-scroll");
+    this.boardEl = this.root.querySelector(".board");
+    this.svgEl = this.root.querySelector("svg.edges");
+  }
+
+  renderLegend(){
+    this.legendEl.innerHTML = this.branches.map(b =>
+      `<span class="sw"><span class="dot" style="background:${b.color}"></span>${b.name}</span>`
+    ).join("");
+  }
+
+  render(){
+    this.renderLegend();
+    this.boardEl.innerHTML = "";
+    this.svgEl.innerHTML = "";
+
+    this.eras.forEach((era, i) => {
+      const col = document.createElement("div");
+      col.className = "era-col " + (i % 2 === 0 ? "base" : "alt");
+      col.dataset.era = era.id;
+      const nodes = this.nodesByEra(era.id);
+      col.innerHTML = `
+        <div class="era-head">
+          <div class="idx">Эпоха ${i+1}</div>
+          <div class="name">${era.name}</div>
+          <div class="count">${nodes.length} technologies</div>
+        </div>
+        <div class="node-list"></div>
+      `;
+      col.querySelector(".count").textContent = nodes.length + (nodes.length===1 ? " позиция" : " позиций");
+      const list = col.querySelector(".node-list");
+      nodes.forEach(n => {
+        const card = document.createElement("div");
+        card.className = "node";
+        card.tabIndex = 0;
+        card.dataset.id = n.id;
+        const br = this.branchInfo(n.branch);
+        card.style.setProperty("--branch", br.color);
+        card.innerHTML = `<span class="branch-label">${br.name}</span>${n.name}${n.isNew? '<span class="new-badge">нов.</span>':''}`;
+        card.addEventListener("click", () => this.openModal("edit", n.id));
+        card.addEventListener("keydown", (ev) => { if(ev.key === "Enter") this.openModal("edit", n.id); });
+        card.addEventListener("mouseenter", () => this.highlight(n.id));
+        card.addEventListener("mouseleave", () => this.clearHighlight());
+        list.appendChild(card);
+      });
+      this.boardEl.appendChild(col);
+    });
+    this.boardEl.appendChild(this.svgEl);
+
+    requestAnimationFrame(() => this.drawEdges());
+  }
+
+  nodeEl(id){
+    return this.boardEl.querySelector(`.node[data-id="${CSS.escape(id)}"]`);
+  }
+
+  drawEdges(){
+    const boardRect = this.boardEl.getBoundingClientRect();
+    const w = this.boardEl.scrollWidth;
+    const h = Math.max(this.boardEl.scrollHeight, this.boardEl.clientHeight);
+    this.svgEl.setAttribute("width", w);
+    this.svgEl.setAttribute("height", h);
+    this.svgEl.setAttribute("viewBox", `0 0 ${w} ${h}`);
+    this.svgEl.innerHTML = "";
+    const frag = document.createDocumentFragment();
+
+    this.nodes.forEach(n => {
+      const targetEl = this.nodeEl(n.id);
+      if(!targetEl) return;
+      const tRect = targetEl.getBoundingClientRect();
+      const tx = tRect.left - boardRect.left;
+      const ty = tRect.top - boardRect.top + tRect.height/2;
+      n.prereqs.forEach(pid => {
+        const srcEl = this.nodeEl(pid);
+        if(!srcEl) return;
+        const sRect = srcEl.getBoundingClientRect();
+        const sx = sRect.right - boardRect.left;
+        const sy = sRect.top - boardRect.top + sRect.height/2;
+        const dx = Math.max(30, (tx - sx) * 0.45);
+        const d = `M ${sx} ${sy} C ${sx+dx} ${sy}, ${tx-dx} ${ty}, ${tx} ${ty}`;
+        const path = document.createElementNS("http://www.w3.org/2000/svg","path");
+        path.setAttribute("d", d);
+        path.setAttribute("class","edge-path");
+        path.dataset.src = pid;
+        path.dataset.tgt = n.id;
+        frag.appendChild(path);
+      });
+    });
+    this.svgEl.appendChild(frag);
+  }
+
+  highlight(nodeId){
+    const related = new Set([nodeId]);
+    this.nodes.forEach(n => { if(n.prereqs.includes(nodeId)) related.add(n.id); });
+    const target = this.nodes.find(n => n.id === nodeId);
+    if(target) target.prereqs.forEach(p => related.add(p));
+
+    this.boardEl.querySelectorAll(".node").forEach(el => {
+      el.classList.toggle("hi", related.has(el.dataset.id));
+      el.classList.toggle("dim", !related.has(el.dataset.id));
+    });
+    this.svgEl.querySelectorAll(".edge-path").forEach(p => {
+      const isRel = p.dataset.src === nodeId || p.dataset.tgt === nodeId;
+      p.classList.toggle("hi", isRel);
+      p.classList.toggle("dim", !isRel);
+    });
+  }
+
+  clearHighlight(){
+    this.boardEl.querySelectorAll(".node").forEach(el => { el.classList.remove("hi","dim"); });
+    this.svgEl.querySelectorAll(".edge-path").forEach(p => { p.classList.remove("hi","dim"); });
+  }
+
+  shuffle(){
+    this.eras.forEach(era => {
+      const inEra = this.nodes.filter(n => n.era === era.id);
+      const orders = inEra.map((_,i) => i);
+      for(let i=orders.length-1;i>0;i--){
+        const j = Math.floor(Math.random()*(i+1));
+        [orders[i],orders[j]] = [orders[j],orders[i]];
+      }
+      inEra.forEach((n,i) => { n.order = orders[i]; });
+    });
+    this.save();
+    this.render();
+  }
+
+  sanitizeDeps(){
+    this.nodes.forEach(n => {
+      const myIdx = this.eraIndex(n.era);
+      n.prereqs = n.prereqs.filter(pid => {
+        const p = this.nodes.find(x => x.id === pid);
+        return p && this.eraIndex(p.era) < myIdx;
+      });
+    });
+  }
+
+  upsertBranch(name){
+    let b = this.branches.find(x => x.name.toLowerCase() === name.toLowerCase());
+    if(b) return b.id;
+    const id = uid("branch");
+    const color = PALETTE[this.branches.length % PALETTE.length];
+    this.branches.push({id, name, color});
+    return id;
+  }
+
+  openModal(mode, nodeId){
+    const overlay = document.getElementById("overlay");
+    const modal = document.getElementById("modal");
+    const node = mode === "edit" ? this.nodes.find(n => n.id === nodeId) : null;
+    const eraOptions = this.eras.map(e => `<option value="${e.id}">${e.name}</option>`).join("");
+    const branchOptions = this.branches.map(b => `<option value="${b.id}">${b.name}</option>`).join("");
+
+    modal.innerHTML = `
+      <h3>${mode === "edit" ? "Изменить технологию" : "Новая технология"} · ${this.title}</h3>
+      <div class="field">
+        <label>Название</label>
+        <input type="text" id="f-name" value="${node ? node.name.replace(/"/g,'&quot;') : ""}" />
+      </div>
+      <div class="field">
+        <label>Ветка</label>
+        <select id="f-branch">${branchOptions}<option value="__new__">+ новая ветка…</option></select>
+        <input type="text" id="f-branch-new" placeholder="Название новой ветки" style="margin-top:6px;display:none;" />
+      </div>
+      <div class="field">
+        <label>Эпоха</label>
+        <select id="f-era">${eraOptions}</select>
+        <div class="hint">Список доступных зависимостей ниже зависит от выбранной эпохи (только более ранние).</div>
+      </div>
+      <div class="field">
+        <label>Зависит от (пререквизиты из более ранних эпох)</label>
+        <input type="text" id="f-search" class="prereq-search" placeholder="Поиск по названию…" />
+        <div class="prereq-list" id="f-prereqs"></div>
+      </div>
+      ${node ? `<div class="deps-of" id="f-depsof"></div>` : ""}
+      <div class="modal-actions">
+        <div class="left">${node ? `<button class="danger" id="f-delete">Удалить</button>` : ""}</div>
+        <div class="right">
+          <button class="ghost" id="f-cancel">Отмена</button>
+          <button class="primary ${this.accent}" id="f-save">Сохранить</button>
+        </div>
+      </div>
+    `;
+    overlay.classList.add("open");
+
+    const branchSel = modal.querySelector("#f-branch");
+    const branchNewInput = modal.querySelector("#f-branch-new");
+    const eraSel = modal.querySelector("#f-era");
+    const prereqBox = modal.querySelector("#f-prereqs");
+    const searchInput = modal.querySelector("#f-search");
+
+    if(node){ branchSel.value = node.branch; eraSel.value = node.era; }
+    branchSel.addEventListener("change", () => {
+      branchNewInput.style.display = branchSel.value === "__new__" ? "block" : "none";
+    });
+
+    const selectedPrereqs = new Set(node ? node.prereqs : []);
+
+    const renderPrereqs = () => {
+      const eraIdx = this.eraIndex(eraSel.value);
+      const q = searchInput.value.trim().toLowerCase();
+      const candidates = this.nodes
+        .filter(n => n.id !== nodeId && this.eraIndex(n.era) < eraIdx)
+        .filter(n => !q || n.name.toLowerCase().includes(q))
+        .sort((a,b) => this.eraIndex(a.era) - this.eraIndex(b.era) || a.name.localeCompare(b.name,"ru"));
+      if(candidates.length === 0){
+        prereqBox.innerHTML = `<div class="hint">Нет технологий из более ранних эпох.</div>`;
+        return;
+      }
+      prereqBox.innerHTML = candidates.map(c => {
+        const era = this.eras.find(e => e.id === c.era);
+        return `<label class="prereq-row">
+          <input type="checkbox" value="${c.id}" ${selectedPrereqs.has(c.id) ? "checked" : ""} />
+          ${c.name}<span class="era-tag">${era ? era.name : ""}</span>
+        </label>`;
+      }).join("");
+      prereqBox.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        cb.addEventListener("change", () => {
+          if(cb.checked) selectedPrereqs.add(cb.value); else selectedPrereqs.delete(cb.value);
+        });
+      });
+    };
+    eraSel.addEventListener("change", renderPrereqs);
+    searchInput.addEventListener("input", renderPrereqs);
+    renderPrereqs();
+
+    if(node){
+      const deps = this.dependentsOf(node.id);
+      modal.querySelector("#f-depsof").textContent = deps.length
+        ? "Является основой для: " + deps.map(d => d.name).join(", ")
+        : "Пока не является основой ни для одной технологии.";
+    }
+
+    const close = () => { overlay.classList.remove("open"); modal.innerHTML = ""; };
+    modal.querySelector("#f-cancel").addEventListener("click", close);
+    overlay.addEventListener("click", (ev) => { if(ev.target === overlay) close(); }, {once:true});
+
+    modal.querySelector("#f-save").addEventListener("click", () => {
+      const name = modal.querySelector("#f-name").value.trim();
+      if(!name) return;
+      let branchId = branchSel.value;
+      if(branchId === "__new__"){
+        const newName = branchNewInput.value.trim();
+        if(!newName) return;
+        branchId = this.upsertBranch(newName);
+      }
+      const era = eraSel.value;
+      const prereqs = Array.from(selectedPrereqs).filter(pid => this.eraIndex(this.nodes.find(n=>n.id===pid)?.era) < this.eraIndex(era));
+
+      if(node){
+        node.name = name; node.branch = branchId; node.era = era; node.prereqs = prereqs;
+      } else {
+        this.nodes.push({id: uid("custom"), name, branch: branchId, era, prereqs, order: 999, isNew:true});
+      }
+      this.sanitizeDeps();
+      this.save();
+      this.render();
+      close();
+    });
+
+    if(node){
+      modal.querySelector("#f-delete").addEventListener("click", (ev) => {
+        const btn = ev.currentTarget;
+        if(btn.dataset.confirm === "1"){
+          this.nodes = this.nodes.filter(n => n.id !== node.id);
+          this.nodes.forEach(n => { n.prereqs = n.prereqs.filter(p => p !== node.id); });
+          this.save();
+          this.render();
+          close();
+        } else {
+          btn.dataset.confirm = "1";
+          btn.textContent = "Точно удалить?";
+          setTimeout(() => { btn.dataset.confirm = "0"; btn.textContent = "Удалить"; }, 3500);
+        }
+      });
+    }
+  }
+}
+
+window.__initTrees = function(){
+  new TreeApp({
+    mount:"app-sci", storageKey:"civi_tech_tree_v1",
+    title:"Дерево технологий (Наука / Озарения)",
+    subtitle:"Ветки: сельское хозяйство, материалы, осадное дело, стрелковое оружие, мореплавание, наука, медицина и др.",
+    treeClass:"tree-sci", accent:"sci", data: TECH_DATA
+  });
+  new TreeApp({
+    mount:"app-cul", storageKey:"civi_civic_tree_v1",
+    title:"Дерево социальных концепций (Культура / Вдохновение)",
+    subtitle:"Ветки: управление, право, религия, военная организация, экономика, образование, искусство, дипломатия и др.",
+    treeClass:"tree-cul", accent:"cul", data: CIVIC_DATA
+  });
+};
+window.__initTrees();
+})();
+
+</script>
