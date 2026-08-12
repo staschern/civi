@@ -1,0 +1,7 @@
+# зависимости вспомогательных скриптов (playwright-core для tools/audit-tree-layout.js)
+node_modules/
+package-lock.json
+
+# временные файлы прогонов
+*.log
+/tmp/
