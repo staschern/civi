@@ -130,8 +130,8 @@
 
   .era-col{
     --lanes:2;
-    --lane-w:168px;
-    --lane-gap:8px;
+    --lane-w:162px;
+    --lane-gap:26px;
     position:relative;
     width:calc(var(--lanes) * var(--lane-w) + (var(--lanes) - 1) * var(--lane-gap) + 20px);
     flex:0 0 auto;
@@ -151,9 +151,12 @@
 
   .node-list{
     display:grid;grid-template-columns:repeat(var(--lanes), var(--lane-w));
-    gap:var(--lane-gap);align-items:start;position:relative;z-index:2;
+    gap:var(--lane-gap);align-items:stretch;position:relative;z-index:2;
   }
-  .lane{display:flex;flex-direction:column;gap:7px;min-width:0;}
+  .lane{
+    display:flex;flex-direction:column;gap:7px;min-width:0;
+    justify-content:space-around;
+  }
   .node{
     background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--branch, var(--accent-sci));
     border-radius:7px;padding:7px 9px;cursor:pointer;font-size:12.3px;font-weight:500;
@@ -204,11 +207,16 @@
 <div class="wrap">
   <header class="page">
     <h1>Дерево эпох Civi — прототип</h1>
-    <p>Рабочий макет двух деревьев развития: Наука и Социальные концепции. Эпохи — статичные полосы по горизонтали.
-      Внутри одной эпохи технологии не зависят друг от друга; связи могут вести к любой более ранней эпохе, не обязательно соседней.</p>
+    <p>Рабочий макет двух деревьев развития: Наука и Социальные концепции. Эпохи — статичные полосы по горизонтали,
+      внутри каждой эпохи от 2 до 5 столбцов. Столбцы нумеруются сквозной нумерацией через все эпохи.</p>
     <div class="rule-box">
-      <b>Правило согласованности:</b> в рамках одной ветки (например «Осадные вооружения») в одной эпохе не может быть больше одной технологии —
-      поэтому «Перемешать» безопасно меняет порядок карточек внутри эпохи и никогда не создаёт логических противоречий вроде бомбарды раньше требушета.
+      <b>Правило столбцов:</b> технологии без зависимостей возможны только в самом первом столбце первой эпохи.
+      Любая другая технология обязана опираться минимум на одну технологию из непосредственно предыдущего столбца —
+      то есть она встаёт в столбец сразу за тем, где лежит самая поздняя из её основ. Дополнительные связи могут уходить
+      в любые более ранние столбцы. Для первого столбца новой эпохи правило смягчено: чаще всего связь идёт в последний
+      столбец предыдущей эпохи, но иногда — глубже в прошлое.<br>
+      <b>Раскладка:</b> количество столбцов в эпохе бросается случайно (каждый следующий — с меньшей вероятностью),
+      карточки распределяются по всей высоте столбца и упорядочиваются методом барицентров, чтобы связи меньше пересекались.
       Изменения (перемешивание, добавление, перенос, связи) сохраняются в этом браузере автоматически.
     </div>
   </header>
@@ -246,14 +254,22 @@ const LANE_MAX = 5;
 const LANE_P0 = 0.55;
 const LANE_DECAY = 0.5;
 
+/* Связи между столбцами.
+   P_PREV_ERA — вероятность, что технология из первого столбца эпохи
+   опирается именно на последний столбец предыдущей эпохи (иначе — на более ранние).
+   P_SECOND — вероятность второй связи с тем же предыдущим столбцом. */
+const P_PREV_ERA = 0.78;
+const P_SECOND = 0.3;
+
 function maxLanesFor(nodeCount){
   // не заводим колонку, в которой окажется меньше двух карточек
+  if(nodeCount <= 1) return 1;
   return Math.min(LANE_MAX, Math.max(LANE_MIN, Math.floor(nodeCount / 2)));
 }
 
 function rollLanes(nodeCount){
   const cap = maxLanesFor(nodeCount);
-  let lanes = LANE_MIN;
+  let lanes = Math.min(LANE_MIN, cap);
   let p = LANE_P0;
   while(lanes < cap && Math.random() < p){
     lanes++;
@@ -262,18 +278,38 @@ function rollLanes(nodeCount){
   return lanes;
 }
 
-/* Раскладка карточек по колонкам: сбалансированные последовательные куски,
-   поэтому порядок читается сверху вниз, слева направо. */
-function splitIntoLanes(items, lanes){
-  const out = Array.from({length: lanes}, () => []);
-  const base = Math.floor(items.length / lanes);
-  const rem = items.length % lanes;
-  let k = 0;
-  for(let i = 0; i < lanes; i++){
-    const take = base + (i < rem ? 1 : 0);
-    for(let j = 0; j < take; j++) out[i].push(items[k++]);
+function shuffled(arr){
+  const a = arr.slice();
+  for(let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
   }
-  return out;
+  return a;
+}
+
+/* Выбор технологии-основы в соседнем столбце: сначала своя ветка,
+   дальше — та, от которой пока меньше всего зависит, чтобы связи
+   расходились равномерно, а не сходились в один узел. */
+function pickSource(pool, node, outDeg, exclude){
+  const free = pool.filter(c => !exclude.has(c.id));
+  if(!free.length) return null;
+  const sameBranch = free.filter(c => c.branch === node.branch);
+  const from = sameBranch.length ? sameBranch : free;
+  let best = Infinity, bucket = [];
+  from.forEach(c => {
+    const d = outDeg.get(c.id) || 0;
+    if(d < best){ best = d; bucket = [c]; }
+    else if(d === best){ bucket.push(c); }
+  });
+  return bucket[Math.floor(Math.random() * bucket.length)];
+}
+
+/* Случайный столбец левее заданного со смещением к ближним:
+   вес падает геометрически по мере удаления. */
+function pickEarlierColumn(columns, beforeGi){
+  let gi = beforeGi - 1;
+  while(gi > 0 && Math.random() < 0.45) gi--;
+  return columns[Math.max(0, gi)];
 }
 
 class TreeApp{
@@ -285,8 +321,10 @@ class TreeApp{
     this.treeClass = opts.treeClass; // 'tree-sci' | 'tree-cul'
     this.accent = opts.accent; // 'sci' | 'cul'
     this.defaultData = opts.data;
+    this.arrowId = "arrow-" + opts.mount;
     this.confirmState = null; // for inline confirm-on-second-click
     this.load();
+    this.save();
     this.renderShell();
     this.render();
     window.addEventListener("resize", () => this.drawEdges());
@@ -301,12 +339,15 @@ class TreeApp{
         this.eras = parsed.eras;
         this.branches = parsed.branches;
         this.nodes = parsed.nodes;
+        // состояние из старой версии прототипа — раскладываем с нуля
+        this.relayout(this.nodes.some(n => typeof n.lane !== "number"));
         return;
       }catch(e){ /* fall through to defaults */ }
     }
     this.eras = this.defaultData.eras.map(e => ({...e}));
     this.branches = this.defaultData.branches.map(b => ({...b}));
     this.nodes = this.defaultData.nodes.map(n => ({...n, prereqs:[...n.prereqs]}));
+    this.relayout(true);
   }
 
   /* Количество колонок в каждой эпохе.
@@ -334,6 +375,7 @@ class TreeApp{
   resetToDefault(){
     try{ localStorage.removeItem(this.storageKey); }catch(e){}
     this.load();
+    this.save();
     this.render();
   }
 
@@ -346,15 +388,175 @@ class TreeApp{
     return this.branches.find(b => b.id === branchId) || {id:branchId, name:branchId, color:"#888"};
   }
 
-  nodesByEra(eraId){
-    return this.nodes
-      .filter(n => n.era === eraId)
-      .slice()
-      .sort((a,b) => (a.order||0) - (b.order||0));
+  /* Полный список зависимостей: авторские (prereqs) + достроенные
+     алгоритмом связи с предыдущим столбцом (auto). */
+  allPrereqs(n){
+    const seen = new Set();
+    const out = [];
+    (n.prereqs || []).concat(n.auto || []).forEach(id => {
+      if(!seen.has(id)){ seen.add(id); out.push(id); }
+    });
+    return out;
   }
 
   dependentsOf(nodeId){
-    return this.nodes.filter(n => n.prereqs.includes(nodeId));
+    return this.nodes.filter(n => this.allPrereqs(n).includes(nodeId));
+  }
+
+  /* ---------- Раскладка по сквозным столбцам ---------- */
+
+  /* Плоский список столбцов: у каждой эпохи era.lanes своих столбцов,
+     сквозная нумерация gi идёт слева направо через все эпохи. */
+  buildColumns(){
+    this.columns = [];
+    this.eraFirstCol = {};
+    this.eras.forEach(era => {
+      this.eraFirstCol[era.id] = this.columns.length;
+      for(let lane = 0; lane < era.lanes; lane++){
+        this.columns.push({era, lane, gi: this.columns.length, nodes: []});
+      }
+    });
+
+    const eraById = new Map(this.eras.map(e => [e.id, e]));
+    this.byId = new Map(this.nodes.map(n => [n.id, n]));
+
+    this.nodes.forEach(n => {
+      const era = eraById.get(n.era);
+      if(!era){ n.col = -1; return; }
+      if(typeof n.lane !== "number") n.lane = Math.floor(Math.random() * era.lanes);
+      n.lane = Math.min(Math.max(0, n.lane | 0), era.lanes - 1);
+      const col = this.columns[this.eraFirstCol[n.era] + n.lane];
+      n.col = col.gi;
+      col.nodes.push(n);
+    });
+
+    this.columns.forEach(col => {
+      col.nodes.sort((a,b) => (a.row || 0) - (b.row || 0));
+      col.nodes.forEach((n,i) => { n.row = i; });
+    });
+  }
+
+  /* Раскидываем технологии эпохи по её столбцам сбалансированными кусками. */
+  assignLanes(){
+    this.eras.forEach(era => {
+      const inEra = shuffled(this.nodes.filter(n => n.era === era.id));
+      const lanes = Math.max(1, Math.min(era.lanes, inEra.length || 1));
+      era.lanes = lanes;
+      const base = Math.floor(inEra.length / lanes);
+      const rem = inEra.length % lanes;
+      let k = 0;
+      for(let i = 0; i < lanes; i++){
+        const take = base + (i < rem ? 1 : 0);
+        for(let j = 0; j < take; j++){ inEra[k].lane = i; inEra[k].row = j; k++; }
+      }
+    });
+  }
+
+  /* Достраиваем связи так, чтобы правило столбцов выполнялось:
+     - технология из первого столбца первой эпохи обходится без зависимостей;
+     - все остальные обязаны опираться хотя бы на одну технологию
+       из непосредственно предыдущего столбца;
+     - для первого столбца эпохи это правило смягчается: связь может уходить
+       и в более ранние столбцы, но чаще всего идёт в предыдущую эпоху. */
+  generateAutoLinks(fresh){
+    const colOf = id => { const n = this.byId.get(id); return n ? n.col : -1; };
+
+    this.nodes.forEach(n => {
+      n.auto = fresh ? [] : (n.auto || []).filter(pid => this.byId.has(pid) && colOf(pid) < n.col);
+      n.prereqs = (n.prereqs || []).filter(pid => this.byId.has(pid) && colOf(pid) < n.col);
+      if(fresh) delete n.relaxed;
+    });
+
+    const outDeg = new Map(this.nodes.map(n => [n.id, 0]));
+    this.nodes.forEach(n => {
+      this.allPrereqs(n).forEach(pid => outDeg.set(pid, (outDeg.get(pid) || 0) + 1));
+    });
+
+    const link = (n, src) => {
+      if(!src) return;
+      n.auto.push(src.id);
+      outDeg.set(src.id, (outDeg.get(src.id) || 0) + 1);
+    };
+
+    this.columns.forEach(col => {
+      if(col.gi === 0) return; // самый первый столбец первой эпохи — корни дерева
+      const prev = this.columns[col.gi - 1];
+      const isEraFirst = col.lane === 0;
+
+      col.nodes.forEach(n => {
+        const have = this.allPrereqs(n);
+        const used = new Set(have);
+        const hasPrev = have.some(pid => colOf(pid) === col.gi - 1);
+
+        if(!hasPrev){
+          // решение «уходим глубже предыдущей эпохи» принимается один раз
+          // и запоминается, иначе раскладка плыла бы при каждой перерисовке
+          const relax = isEraFirst && (n.relaxed !== undefined ? n.relaxed : (Math.random() > P_PREV_ERA));
+          if(isEraFirst) n.relaxed = relax;
+
+          if(relax && have.length > 0){
+            // связь только с более ранними столбцами — она уже есть
+          } else if(relax){
+            // зависимостей нет вовсе: тянем связь в более ранний столбец
+            const far = pickEarlierColumn(this.columns, col.gi);
+            const src = pickSource(far.nodes, n, outDeg, used);
+            link(n, src);
+            if(src) used.add(src.id);
+          } else {
+            const src = pickSource(prev.nodes, n, outDeg, used);
+            link(n, src);
+            if(src) used.add(src.id);
+          }
+        }
+
+        // вторая связь — только при полной генерации, чтобы починка
+        // раскладки не наращивала связи на каждой перерисовке
+        if(fresh && !n.relaxed && Math.random() < P_SECOND){
+          const extra = pickSource(prev.nodes, n, outDeg, used);
+          if(extra && !used.has(extra.id)) link(n, extra);
+        }
+      });
+    });
+  }
+
+  /* Порядок карточек внутри столбца по методу барицентров:
+     карточка встаёт напротив своих зависимостей, связи почти не пересекаются. */
+  orderColumns(){
+    const posOf = n => {
+      const col = this.columns[n.col];
+      return col ? (n.row + 0.5) / Math.max(1, col.nodes.length) : 0.5;
+    };
+
+    const sweep = (forward) => {
+      const order = forward ? this.columns : this.columns.slice().reverse();
+      order.forEach(col => {
+        if(forward && col.gi === 0) return;
+        if(!forward && col.gi === this.columns.length - 1) return;
+        const bary = new Map();
+        col.nodes.forEach(n => {
+          const refs = forward
+            ? this.allPrereqs(n).map(id => this.byId.get(id)).filter(Boolean)
+            : this.dependentsOf(n.id);
+          const vals = refs.map(posOf);
+          bary.set(n.id, vals.length ? vals.reduce((a,b) => a + b, 0) / vals.length : posOf(n));
+        });
+        col.nodes.sort((a,b) => bary.get(a.id) - bary.get(b.id));
+        col.nodes.forEach((n,i) => { n.row = i; });
+      });
+    };
+
+    for(let i = 0; i < 4; i++){ sweep(true); sweep(false); }
+    sweep(true);
+  }
+
+  /* fresh=true — полная случайная перегенерация (кнопка «Перемешать»),
+     иначе аккуратная починка после правки данных. */
+  relayout(fresh){
+    this.ensureLanes(fresh);
+    if(fresh) this.assignLanes();
+    this.buildColumns();
+    this.generateAutoLinks(fresh);
+    this.orderColumns();
   }
 
   renderShell(){
@@ -408,30 +610,35 @@ class TreeApp{
 
   render(){
     this.renderLegend();
-    this.ensureLanes(false);
     this.boardEl.innerHTML = "";
     this.svgEl.innerHTML = "";
+    const lanesEls = [];
 
     this.eras.forEach((era, i) => {
       const col = document.createElement("div");
       col.className = "era-col " + (i % 2 === 0 ? "base" : "alt");
       col.dataset.era = era.id;
-      const nodes = this.nodesByEra(era.id);
+      const first = this.eraFirstCol[era.id];
+      const eraColumns = this.columns.slice(first, first + era.lanes);
+      const total = eraColumns.reduce((s,c) => s + c.nodes.length, 0);
       col.style.setProperty("--lanes", era.lanes);
       col.innerHTML = `
         <div class="era-head">
-          <div class="idx">Эпоха ${i+1}</div>
+          <div class="idx">Эпоха ${i+1} · столбцы ${first+1}–${first+era.lanes}</div>
           <div class="name">${era.name}</div>
-          <div class="count">${nodes.length} technologies</div>
+          <div class="count"></div>
         </div>
         <div class="node-list"></div>
       `;
-      col.querySelector(".count").textContent = nodes.length + (nodes.length===1 ? " позиция" : " позиций");
+      const lanesWord = era.lanes === 1 ? "колонка" : (era.lanes < 5 ? "колонки" : "колонок");
+      col.querySelector(".count").textContent =
+        `${total} ${total === 1 ? "позиция" : "позиций"} · ${era.lanes} ${lanesWord}`;
       const list = col.querySelector(".node-list");
-      splitIntoLanes(nodes, era.lanes).forEach(laneNodes => {
+      eraColumns.forEach(column => {
         const lane = document.createElement("div");
         lane.className = "lane";
-        laneNodes.forEach(n => {
+        lane.dataset.gi = column.gi;
+        column.nodes.forEach(n => {
           const card = document.createElement("div");
           card.className = "node";
           card.tabIndex = 0;
@@ -445,13 +652,22 @@ class TreeApp{
           card.addEventListener("mouseleave", () => this.clearHighlight());
           lane.appendChild(card);
         });
+        lanesEls.push(lane);
         list.appendChild(lane);
       });
       this.boardEl.appendChild(col);
     });
     this.boardEl.appendChild(this.svgEl);
 
-    requestAnimationFrame(() => this.drawEdges());
+    // Вторым проходом растягиваем все столбцы на одну высоту и раскидываем
+    // карточки равномерно по вертикали — так связи не слипаются вверху доски.
+    requestAnimationFrame(() => {
+      let natural = 0;
+      lanesEls.forEach(l => { natural = Math.max(natural, l.scrollHeight); });
+      const target = Math.round(natural + 40);
+      this.boardEl.querySelectorAll(".node-list").forEach(l => { l.style.height = target + "px"; });
+      requestAnimationFrame(() => this.drawEdges());
+    });
   }
 
   nodeEl(id){
@@ -465,7 +681,17 @@ class TreeApp{
     this.svgEl.setAttribute("width", w);
     this.svgEl.setAttribute("height", h);
     this.svgEl.setAttribute("viewBox", `0 0 ${w} ${h}`);
-    this.svgEl.innerHTML = "";
+    this.svgEl.innerHTML = `
+      <defs>
+        <marker id="${this.arrowId}" viewBox="0 0 8 8" refX="7" refY="4"
+                markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 8 4 L 0 8 z" fill="var(--edge)"></path>
+        </marker>
+        <marker id="${this.arrowId}-hi" viewBox="0 0 8 8" refX="7" refY="4"
+                markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 8 4 L 0 8 z" fill="var(--edge-hi)"></path>
+        </marker>
+      </defs>`;
     const frag = document.createDocumentFragment();
 
     this.nodes.forEach(n => {
@@ -474,17 +700,18 @@ class TreeApp{
       const tRect = targetEl.getBoundingClientRect();
       const tx = tRect.left - boardRect.left;
       const ty = tRect.top - boardRect.top + tRect.height/2;
-      n.prereqs.forEach(pid => {
+      this.allPrereqs(n).forEach(pid => {
         const srcEl = this.nodeEl(pid);
         if(!srcEl) return;
         const sRect = srcEl.getBoundingClientRect();
         const sx = sRect.right - boardRect.left;
         const sy = sRect.top - boardRect.top + sRect.height/2;
-        const dx = Math.max(30, (tx - sx) * 0.45);
+        const dx = Math.max(10, Math.min(110, (tx - sx) * 0.45));
         const d = `M ${sx} ${sy} C ${sx+dx} ${sy}, ${tx-dx} ${ty}, ${tx} ${ty}`;
         const path = document.createElementNS("http://www.w3.org/2000/svg","path");
         path.setAttribute("d", d);
         path.setAttribute("class","edge-path");
+        path.setAttribute("marker-end", `url(#${this.arrowId})`);
         path.dataset.src = pid;
         path.dataset.tgt = n.id;
         frag.appendChild(path);
@@ -495,9 +722,9 @@ class TreeApp{
 
   highlight(nodeId){
     const related = new Set([nodeId]);
-    this.nodes.forEach(n => { if(n.prereqs.includes(nodeId)) related.add(n.id); });
+    this.nodes.forEach(n => { if(this.allPrereqs(n).includes(nodeId)) related.add(n.id); });
     const target = this.nodes.find(n => n.id === nodeId);
-    if(target) target.prereqs.forEach(p => related.add(p));
+    if(target) this.allPrereqs(target).forEach(p => related.add(p));
 
     this.boardEl.querySelectorAll(".node").forEach(el => {
       el.classList.toggle("hi", related.has(el.dataset.id));
@@ -507,37 +734,22 @@ class TreeApp{
       const isRel = p.dataset.src === nodeId || p.dataset.tgt === nodeId;
       p.classList.toggle("hi", isRel);
       p.classList.toggle("dim", !isRel);
+      p.setAttribute("marker-end", `url(#${this.arrowId}${isRel ? "-hi" : ""})`);
     });
   }
 
   clearHighlight(){
     this.boardEl.querySelectorAll(".node").forEach(el => { el.classList.remove("hi","dim"); });
-    this.svgEl.querySelectorAll(".edge-path").forEach(p => { p.classList.remove("hi","dim"); });
+    this.svgEl.querySelectorAll(".edge-path").forEach(p => {
+      p.classList.remove("hi","dim");
+      p.setAttribute("marker-end", `url(#${this.arrowId})`);
+    });
   }
 
   shuffle(){
-    this.eras.forEach(era => {
-      const inEra = this.nodes.filter(n => n.era === era.id);
-      const orders = inEra.map((_,i) => i);
-      for(let i=orders.length-1;i>0;i--){
-        const j = Math.floor(Math.random()*(i+1));
-        [orders[i],orders[j]] = [orders[j],orders[i]];
-      }
-      inEra.forEach((n,i) => { n.order = orders[i]; });
-    });
-    this.ensureLanes(true);
+    this.relayout(true);
     this.save();
     this.render();
-  }
-
-  sanitizeDeps(){
-    this.nodes.forEach(n => {
-      const myIdx = this.eraIndex(n.era);
-      n.prereqs = n.prereqs.filter(pid => {
-        const p = this.nodes.find(x => x.id === pid);
-        return p && this.eraIndex(p.era) < myIdx;
-      });
-    });
   }
 
   upsertBranch(name){
@@ -602,21 +814,24 @@ class TreeApp{
     const selectedPrereqs = new Set(node ? node.prereqs : []);
 
     const renderPrereqs = () => {
-      const eraIdx = this.eraIndex(eraSel.value);
+      // доступны технологии из более ранних столбцов; для новой карточки
+      // точкой отсчёта служит первый столбец выбранной эпохи
+      const refCol = node ? node.col : (this.eraFirstCol[eraSel.value] || 0);
       const q = searchInput.value.trim().toLowerCase();
       const candidates = this.nodes
-        .filter(n => n.id !== nodeId && this.eraIndex(n.era) < eraIdx)
+        .filter(n => n.id !== nodeId && n.col >= 0 && n.col < refCol)
         .filter(n => !q || n.name.toLowerCase().includes(q))
-        .sort((a,b) => this.eraIndex(a.era) - this.eraIndex(b.era) || a.name.localeCompare(b.name,"ru"));
+        .sort((a,b) => a.col - b.col || a.row - b.row);
       if(candidates.length === 0){
-        prereqBox.innerHTML = `<div class="hint">Нет технологий из более ранних эпох.</div>`;
+        prereqBox.innerHTML = `<div class="hint">Нет технологий в более ранних столбцах.</div>`;
         return;
       }
       prereqBox.innerHTML = candidates.map(c => {
         const era = this.eras.find(e => e.id === c.era);
+        const auto = node && (node.auto || []).includes(c.id);
         return `<label class="prereq-row">
           <input type="checkbox" value="${c.id}" ${selectedPrereqs.has(c.id) ? "checked" : ""} />
-          ${c.name}<span class="era-tag">${era ? era.name : ""}</span>
+          ${c.name}<span class="era-tag">${era ? era.name : ""} · ст. ${c.col + 1}${auto ? " · авто" : ""}</span>
         </label>`;
       }).join("");
       prereqBox.querySelectorAll('input[type="checkbox"]').forEach(cb => {
@@ -650,14 +865,15 @@ class TreeApp{
         branchId = this.upsertBranch(newName);
       }
       const era = eraSel.value;
-      const prereqs = Array.from(selectedPrereqs).filter(pid => this.eraIndex(this.nodes.find(n=>n.id===pid)?.era) < this.eraIndex(era));
+      const prereqs = Array.from(selectedPrereqs);
 
       if(node){
+        if(node.era !== era){ delete node.lane; delete node.row; }
         node.name = name; node.branch = branchId; node.era = era; node.prereqs = prereqs;
       } else {
-        this.nodes.push({id: uid("custom"), name, branch: branchId, era, prereqs, order: 999, isNew:true});
+        this.nodes.push({id: uid("custom"), name, branch: branchId, era, prereqs, auto:[], isNew:true});
       }
-      this.sanitizeDeps();
+      this.relayout(false);
       this.save();
       this.render();
       close();
@@ -668,7 +884,11 @@ class TreeApp{
         const btn = ev.currentTarget;
         if(btn.dataset.confirm === "1"){
           this.nodes = this.nodes.filter(n => n.id !== node.id);
-          this.nodes.forEach(n => { n.prereqs = n.prereqs.filter(p => p !== node.id); });
+          this.nodes.forEach(n => {
+            n.prereqs = n.prereqs.filter(p => p !== node.id);
+            n.auto = (n.auto || []).filter(p => p !== node.id);
+          });
+          this.relayout(false);
           this.save();
           this.render();
           close();
