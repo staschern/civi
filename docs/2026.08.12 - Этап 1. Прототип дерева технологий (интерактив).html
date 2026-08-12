@@ -1,3 +1,9 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Дерево эпох Civi</title>
 <style>
   :root{
@@ -123,7 +129,13 @@
   .edge-path.dim{opacity:.08;}
 
   .era-col{
-    position:relative;width:216px;flex:0 0 216px;border-right:1px dashed var(--border);
+    --lanes:2;
+    --lane-w:168px;
+    --lane-gap:8px;
+    position:relative;
+    width:calc(var(--lanes) * var(--lane-w) + (var(--lanes) - 1) * var(--lane-gap) + 20px);
+    flex:0 0 auto;
+    border-right:1px dashed var(--border);
     padding:0 10px 18px;
   }
   .era-col:last-child{border-right:none;}
@@ -137,7 +149,11 @@
   .era-head .name{font-family: ui-serif, Georgia, serif;font-size:14px;font-weight:600;margin-top:2px;text-wrap:balance;}
   .era-head .count{font-size:11px;color:var(--text-dim);margin-top:2px;font-variant-numeric:tabular-nums;}
 
-  .node-list{display:flex;flex-direction:column;gap:7px;position:relative;z-index:2;}
+  .node-list{
+    display:grid;grid-template-columns:repeat(var(--lanes), var(--lane-w));
+    gap:var(--lane-gap);align-items:start;position:relative;z-index:2;
+  }
+  .lane{display:flex;flex-direction:column;gap:7px;min-width:0;}
   .node{
     background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--branch, var(--accent-sci));
     border-radius:7px;padding:7px 9px;cursor:pointer;font-size:12.3px;font-weight:500;
@@ -182,6 +198,8 @@
   footer.page{margin-top:40px;color:var(--text-faint);font-size:11.5px;border-top:1px solid var(--border);padding-top:14px;}
   .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);}
 </style>
+</head>
+<body>
 
 <div class="wrap">
   <header class="page">
@@ -220,6 +238,44 @@ function uid(prefix){
   return prefix + "_" + Math.random().toString(36).slice(2,9);
 }
 
+/* Колонки внутри эпохи.
+   Минимум 2 колонки всегда. Каждая следующая добавляется случайно,
+   и вероятность падает с каждым шагом: 3-я — 55%, 4-я — 27.5%, 5-я — 13.75%. */
+const LANE_MIN = 2;
+const LANE_MAX = 5;
+const LANE_P0 = 0.55;
+const LANE_DECAY = 0.5;
+
+function maxLanesFor(nodeCount){
+  // не заводим колонку, в которой окажется меньше двух карточек
+  return Math.min(LANE_MAX, Math.max(LANE_MIN, Math.floor(nodeCount / 2)));
+}
+
+function rollLanes(nodeCount){
+  const cap = maxLanesFor(nodeCount);
+  let lanes = LANE_MIN;
+  let p = LANE_P0;
+  while(lanes < cap && Math.random() < p){
+    lanes++;
+    p *= LANE_DECAY;
+  }
+  return lanes;
+}
+
+/* Раскладка карточек по колонкам: сбалансированные последовательные куски,
+   поэтому порядок читается сверху вниз, слева направо. */
+function splitIntoLanes(items, lanes){
+  const out = Array.from({length: lanes}, () => []);
+  const base = Math.floor(items.length / lanes);
+  const rem = items.length % lanes;
+  let k = 0;
+  for(let i = 0; i < lanes; i++){
+    const take = base + (i < rem ? 1 : 0);
+    for(let j = 0; j < take; j++) out[i].push(items[k++]);
+  }
+  return out;
+}
+
 class TreeApp{
   constructor(opts){
     this.root = document.getElementById(opts.mount);
@@ -251,6 +307,20 @@ class TreeApp{
     this.eras = this.defaultData.eras.map(e => ({...e}));
     this.branches = this.defaultData.branches.map(b => ({...b}));
     this.nodes = this.defaultData.nodes.map(n => ({...n, prereqs:[...n.prereqs]}));
+  }
+
+  /* Количество колонок в каждой эпохе.
+     regenerate=true — бросаем заново (при «Перемешать»),
+     иначе только достраиваем недостающее и подрезаем под текущее число карточек. */
+  ensureLanes(regenerate){
+    this.eras.forEach(era => {
+      const count = this.nodes.filter(n => n.era === era.id).length;
+      if(regenerate || typeof era.lanes !== "number" || !isFinite(era.lanes)){
+        era.lanes = rollLanes(count);
+      } else {
+        era.lanes = Math.min(Math.max(LANE_MIN, Math.round(era.lanes)), maxLanesFor(count));
+      }
+    });
   }
 
   save(){
@@ -338,6 +408,7 @@ class TreeApp{
 
   render(){
     this.renderLegend();
+    this.ensureLanes(false);
     this.boardEl.innerHTML = "";
     this.svgEl.innerHTML = "";
 
@@ -346,6 +417,7 @@ class TreeApp{
       col.className = "era-col " + (i % 2 === 0 ? "base" : "alt");
       col.dataset.era = era.id;
       const nodes = this.nodesByEra(era.id);
+      col.style.setProperty("--lanes", era.lanes);
       col.innerHTML = `
         <div class="era-head">
           <div class="idx">Эпоха ${i+1}</div>
@@ -356,19 +428,24 @@ class TreeApp{
       `;
       col.querySelector(".count").textContent = nodes.length + (nodes.length===1 ? " позиция" : " позиций");
       const list = col.querySelector(".node-list");
-      nodes.forEach(n => {
-        const card = document.createElement("div");
-        card.className = "node";
-        card.tabIndex = 0;
-        card.dataset.id = n.id;
-        const br = this.branchInfo(n.branch);
-        card.style.setProperty("--branch", br.color);
-        card.innerHTML = `<span class="branch-label">${br.name}</span>${n.name}${n.isNew? '<span class="new-badge">нов.</span>':''}`;
-        card.addEventListener("click", () => this.openModal("edit", n.id));
-        card.addEventListener("keydown", (ev) => { if(ev.key === "Enter") this.openModal("edit", n.id); });
-        card.addEventListener("mouseenter", () => this.highlight(n.id));
-        card.addEventListener("mouseleave", () => this.clearHighlight());
-        list.appendChild(card);
+      splitIntoLanes(nodes, era.lanes).forEach(laneNodes => {
+        const lane = document.createElement("div");
+        lane.className = "lane";
+        laneNodes.forEach(n => {
+          const card = document.createElement("div");
+          card.className = "node";
+          card.tabIndex = 0;
+          card.dataset.id = n.id;
+          const br = this.branchInfo(n.branch);
+          card.style.setProperty("--branch", br.color);
+          card.innerHTML = `<span class="branch-label">${br.name}</span>${n.name}${n.isNew? '<span class="new-badge">нов.</span>':''}`;
+          card.addEventListener("click", () => this.openModal("edit", n.id));
+          card.addEventListener("keydown", (ev) => { if(ev.key === "Enter") this.openModal("edit", n.id); });
+          card.addEventListener("mouseenter", () => this.highlight(n.id));
+          card.addEventListener("mouseleave", () => this.clearHighlight());
+          lane.appendChild(card);
+        });
+        list.appendChild(lane);
       });
       this.boardEl.appendChild(col);
     });
@@ -448,6 +525,7 @@ class TreeApp{
       }
       inEra.forEach((n,i) => { n.order = orders[i]; });
     });
+    this.ensureLanes(true);
     this.save();
     this.render();
   }
@@ -622,3 +700,5 @@ window.__initTrees();
 })();
 
 </script>
+</body>
+</html>
