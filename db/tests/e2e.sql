@@ -66,11 +66,24 @@ SELECT (SELECT COUNT(*) FROM tree_version_eras  WHERE version_id = @v) AS eras,
        (SELECT COUNT(*) FROM tree_version_links WHERE version_id = @v) AS links;
 
 -- ручное добавление технологии вне стандартного набора
-INSERT INTO technologies (tree_id, code, name, branch_id, default_era_id, is_standard, notes)
+INSERT INTO technologies (tree_id, code, name, branch_id, default_era_id, is_standard,
+                          image_path, description, historical_note)
 SELECT 1, 't_custom_glassblowing', 'Стеклодувное дело',
        (SELECT id FROM branches WHERE tree_id = 1 AND code = 'materials'),
-       (SELECT id FROM eras WHERE code = 'antiquity'), 0, 'добавлено вручную в версии 1';
+       (SELECT id FROM eras WHERE code = 'antiquity'), 0,
+       '/uploads/tech/glassblowing.png',
+       'Открывает выдувание стекла: посуда, оконное стекло, линзы.',
+       'Появилось в Сидоне около I века до н.э. и быстро разошлось по Римской империи.';
 SET @custom = LAST_INSERT_ID();
+
+-- что эта технология добавляет в игру
+INSERT INTO technology_effects (technology_id, effect_type_id, title, description, payload, position)
+VALUES (@custom, (SELECT id FROM effect_types WHERE code = 'resource'),
+        'Ресурс: стекло', 'Открывает добычу и переработку стекла',
+        '{"resource_code": "glass", "base_rate": 2}', 1),
+       (@custom, (SELECT id FROM effect_types WHERE code = 'building'),
+        'Здание: стекольная мастерская', NULL,
+        '{"building_code": "glass_workshop"}', 2);
 
 INSERT INTO tree_version_nodes
        (version_id, tree_id, technology_id, version_era_id, lane, row_index, global_column, source)
@@ -125,7 +138,14 @@ SELECT v.id AS version_id, COUNT(*) AS has_custom
  GROUP BY v.id;
 
 SELECT '--- поиск нестандартных технологий в каталоге ---' AS step;
-SELECT id, code, name, is_standard FROM technologies WHERE is_standard = 0;
+SELECT id, code, name, is_standard, image_path FROM technologies WHERE is_standard = 0;
+
+SELECT '--- что технология добавляет в игру ---' AS step;
+SELECT t.name AS technology, et.name AS effect_type, e.title, e.payload
+  FROM technology_effects e
+  JOIN technologies t  ON t.id  = e.technology_id
+  JOIN effect_types et ON et.id = e.effect_type_id
+ WHERE e.technology_id = @custom ORDER BY e.position;
 
 SELECT '--- каскадное удаление версии ---' AS step;
 DELETE FROM tree_versions WHERE id = @v2;

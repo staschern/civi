@@ -1,0 +1,4 @@
+# В каталоге загрузок исполняемого кода быть не должно ни при каких условиях.
+php_flag engine off
+Options -Indexes -ExecCGI
+AddType text/plain .php .phtml .php7 .php8 .pl .py .cgi

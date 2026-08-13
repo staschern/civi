@@ -40,6 +40,35 @@ const TREES = [
   { id: 2, code: 'culture', name: 'Дерево социальных концепций', points: 'Культура', boost: 'Вдохновения', data: CIVIC },
 ];
 
+/* Стартовые виды игровых эффектов. payload_schema — подсказка админке,
+   какие поля спрашивать; список видов расширяется через интерфейс. */
+const EFFECT_TYPES = [
+  { code: 'resource', name: 'Новый ресурс',
+    description: 'Открывает добычу или использование ресурса',
+    schema: { resource_code: 'string', base_rate: 'number' } },
+  { code: 'unit', name: 'Новый юнит',
+    description: 'Даёт доступ к боевому или гражданскому юниту',
+    schema: { unit_code: 'string', replaces_unit_code: 'string?' } },
+  { code: 'building', name: 'Новое здание',
+    description: 'Открывает постройку здания',
+    schema: { building_code: 'string' } },
+  { code: 'building_level', name: 'Уровень здания',
+    description: 'Открывает следующий уровень уже доступного здания',
+    schema: { building_code: 'string', level: 'number' } },
+  { code: 'concept', name: 'Игровая концепция',
+    description: 'Вводит механику: торговля, дипломатия, шпионаж и т.п.',
+    schema: { concept_code: 'string' } },
+  { code: 'card', name: 'Карточка',
+    description: 'Добавляет карточку в колоду игрока',
+    schema: { card_code: 'string', slot: 'string?' } },
+  { code: 'resource_rate', name: 'Ускорение добычи',
+    description: 'Меняет скорость добычи ресурса',
+    schema: { resource_code: 'string', percent: 'number' } },
+  { code: 'bonus', name: 'Пассивный бонус',
+    description: 'Постоянный эффект без отдельного объекта в игре',
+    schema: { target: 'string', percent: 'number' } },
+];
+
 // эпохи: сетка у обоих деревьев одна и та же, поэтому каталог общий
 const eras = TECH.eras.slice().sort((a, b) => a.order - b.order);
 const civicEras = CIVIC.eras.slice().sort((a, b) => a.order - b.order);
@@ -87,9 +116,9 @@ out.push('INSERT INTO eras (id, code, name, default_position, is_standard) VALUE
 out.push(rows(eras.map((e, i) => [eraId.get(e.id), q(e.id), q(e.name), i + 1, 1])) + ';');
 out.push('');
 
-out.push(`-- ${branches.length} веток (${TECH.branches.length} научных + ${CIVIC.branches.length} культурных)`);
-out.push('INSERT INTO branches (id, tree_id, code, name, color) VALUES');
-out.push(rows(branches.map(b => [b.id, b.tree, q(b.code), q(b.name), q(b.color)])) + ';');
+out.push(`-- ${branches.length} категорий (${TECH.branches.length} научных + ${CIVIC.branches.length} культурных)`);
+out.push('INSERT INTO branches (id, tree_id, code, name, color, position) VALUES');
+out.push(rows(branches.map((b, i) => [b.id, b.tree, q(b.code), q(b.name), q(b.color), i + 1])) + ';');
 out.push('');
 
 out.push(`-- ${techs.length} позиций каталога (${TECH.nodes.length} технологий + ${CIVIC.nodes.length} соц. концепций)`);
@@ -103,6 +132,14 @@ out.push('');
 out.push(`-- ${prereqs.length} авторских связей каталога (кросс-эпохальные, проставлены вручную)`);
 out.push('INSERT INTO technology_prereqs (technology_id, prereq_technology_id) VALUES');
 out.push(rows(prereqs) + ';');
+out.push('');
+
+out.push('-- Стартовые виды игровых эффектов. Список открытый: новые заводятся');
+out.push('-- через админку, миграция для этого не нужна.');
+out.push('INSERT INTO effect_types (id, code, name, description, payload_schema, position) VALUES');
+out.push(rows(EFFECT_TYPES.map((e, i) => [
+  i + 1, q(e.code), q(e.name), q(e.description), q(JSON.stringify(e.schema)), i + 1,
+])) + ';');
 out.push('');
 
 fs.writeFileSync(outPath, out.join('\n') + '\n', 'utf8');

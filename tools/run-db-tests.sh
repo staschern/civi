@@ -71,7 +71,8 @@ for f in "$CONSTRAINTS_DIR"/*.sql; do
   if [ $? -eq 0 ]; then
     bad "$name — БД пропустила некорректные данные"
   else
-    reason=$(echo "$err" | grep -io "CONSTRAINT \`[a-z_]*\`\|key '[a-z_]*'" | head -1)
+    # MySQL пишет имя ключа как 'таблица.ключ', MariaDB — просто 'ключ'
+    reason=$(echo "$err" | grep -io "CONSTRAINT \`[a-z_]*\`\|constraint '[a-z_]*'\|key '[a-z_.]*'" | head -1)
     ok "$name ${reason:+→ $reason}"
   fi
 done

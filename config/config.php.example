@@ -1,0 +1,33 @@
+<?php
+/**
+ * Конфигурация админки. Скопировать в config/config.php и заполнить.
+ * Сам config.php в git не попадает (см. .gitignore).
+ */
+return [
+    'db' => [
+        'host'     => '127.0.0.1',
+        'port'     => 3306,
+        'database' => 'civi',
+        'user'     => 'civi',
+        'password' => '',
+        // если MySQL слушает сокет, а не порт, укажите путь и оставьте host пустым
+        'socket'   => '',
+    ],
+
+    // Хеш пароля админки. Сгенерировать своим паролем:
+    //   php tools/make-password-hash.php
+    // и вставить сюда полученную строку. Сам пароль нигде не хранится.
+    'admin_password_hash' => '',
+
+    // Имя cookie сессии и время жизни в секундах.
+    'session_name'     => 'civi_admin',
+    'session_lifetime' => 43200,
+
+    // Каталог для загруженных картинок технологий: путь на диске
+    // и соответствующий ему путь в вебе.
+    'uploads_dir'  => __DIR__ . '/../public/uploads/tech',
+    'uploads_url'  => '/uploads/tech',
+
+    // true — показывать подробности ошибок. На бою держать false.
+    'debug' => false,
+];

@@ -1,7 +1,14 @@
+# локальная конфигурация с доступом к базе и хешем пароля
+/config/config.php
+
+# загруженные картинки технологий
+/public/uploads/tech/*
+!/public/uploads/tech/.gitkeep
+
 # зависимости вспомогательных скриптов (playwright-core для tools/audit-tree-layout.js)
 node_modules/
 package-lock.json
+package.json
 
 # временные файлы прогонов
 *.log
-/tmp/

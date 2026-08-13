@@ -6,6 +6,9 @@
 --    * trees / eras / branches / technologies / technology_prereqs —
 --      каталог. Живёт вне версий, помечен флагом is_standard.
 --      Стандартный набор = всё, у чего is_standard = 1.
+--    * effect_types / technology_effects — что технология добавляет в игру
+--      (ресурс, юнит, уровень здания, концепция, карточка, ускорение
+--      добычи…). Свойство технологии, общее для всех версий.
 --    * tree_versions / tree_version_eras / tree_version_era_lanes /
 --      tree_version_nodes / tree_version_links — снимок конкретной
 --      сгенерированной (и, возможно, доработанной руками) пары деревьев.
@@ -60,36 +63,45 @@ CREATE TABLE eras (
   KEY idx_eras_standard (is_standard, default_position)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---  Ветки (смысловые направления): осадное дело, металлургия, право и т.д.
---  Ветка принадлежит конкретному дереву, коды уникальны внутри дерева.
+--  Категории технологий, они же ветки (смысловые направления):
+--  «Наука и приборы», «Материалы и металлургия», «Сельское хозяйство», …
+--  Категория принадлежит конкретному дереву, коды уникальны внутри дерева.
+--  Название и цвет правятся через админку, категории можно добавлять.
 CREATE TABLE branches (
-  id         SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  tree_id    TINYINT UNSIGNED  NOT NULL,
-  code       VARCHAR(64)       NOT NULL,
-  name       VARCHAR(190)      NOT NULL,
-  color      CHAR(7)           NOT NULL COMMENT 'цвет карточки, #rrggbb',
-  created_at TIMESTAMP         NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  id          SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  tree_id     TINYINT UNSIGNED  NOT NULL,
+  code        VARCHAR(64)       NOT NULL,
+  name        VARCHAR(190)      NOT NULL,
+  color       CHAR(7)           NOT NULL COMMENT 'цвет карточки, #rrggbb',
+  description VARCHAR(500)          NULL,
+  position    SMALLINT UNSIGNED NOT NULL DEFAULT 1 COMMENT 'порядок в легенде',
+  is_active   TINYINT(1)        NOT NULL DEFAULT 1,
+  created_at  TIMESTAMP         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at  TIMESTAMP         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_branches_tree_code (tree_id, code),
+  KEY idx_branches_position (tree_id, position),
   -- составной ключ нужен, чтобы технология не смогла сослаться на ветку чужого дерева
   UNIQUE KEY uq_branches_id_tree (id, tree_id),
   CONSTRAINT fk_branches_tree FOREIGN KEY (tree_id) REFERENCES trees (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --  Каталог технологий и социальных концепций. Одна таблица на оба дерева,
---  принадлежность задаётся tree_id.
+--  принадлежность задаётся tree_id. Здесь же карточка технологии:
+--  картинка, описание и историческая справка.
 CREATE TABLE technologies (
-  id             INT UNSIGNED      NOT NULL AUTO_INCREMENT,
-  tree_id        TINYINT UNSIGNED  NOT NULL,
-  code           VARCHAR(96)       NOT NULL COMMENT 'машинный код, t_siege_antiquity',
-  name           VARCHAR(190)      NOT NULL,
-  branch_id      SMALLINT UNSIGNED NOT NULL,
-  default_era_id SMALLINT UNSIGNED NOT NULL COMMENT 'эпоха по умолчанию при генерации',
-  is_standard    TINYINT(1)        NOT NULL DEFAULT 1 COMMENT '1 — входит в стандартный набор',
-  notes          VARCHAR(500)          NULL,
-  created_at     TIMESTAMP         NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at     TIMESTAMP         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  id              INT UNSIGNED      NOT NULL AUTO_INCREMENT,
+  tree_id         TINYINT UNSIGNED  NOT NULL,
+  code            VARCHAR(96)       NOT NULL COMMENT 'машинный код, t_siege_antiquity',
+  name            VARCHAR(190)      NOT NULL,
+  branch_id       SMALLINT UNSIGNED NOT NULL COMMENT 'категория технологии',
+  default_era_id  SMALLINT UNSIGNED NOT NULL COMMENT 'эпоха по умолчанию при генерации',
+  is_standard     TINYINT(1)        NOT NULL DEFAULT 1 COMMENT '1 — входит в стандартный набор',
+  image_path      VARCHAR(255)          NULL COMMENT 'путь к картинке относительно веб-корня',
+  description     TEXT                  NULL COMMENT 'описание технологии для игрока',
+  historical_note TEXT                  NULL COMMENT 'историческая справка',
+  created_at      TIMESTAMP         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at      TIMESTAMP         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_technologies_code (code),
   -- составной ключ нужен, чтобы карточка версии не смогла приписать
@@ -117,6 +129,51 @@ CREATE TABLE technology_prereqs (
     REFERENCES technologies (id) ON DELETE CASCADE,
   CONSTRAINT fk_technology_prereqs_prereq FOREIGN KEY (prereq_technology_id)
     REFERENCES technologies (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--  Виды игровых эффектов: что технология даёт игре. Справочник, а не ENUM —
+--  список заведомо будет расширяться, и добавлять новый вид нужно из админки,
+--  без миграций. payload_schema подсказывает интерфейсу, какие поля
+--  спрашивать у конкретного вида (например, у «ускорения добычи» — ресурс
+--  и процент).
+CREATE TABLE effect_types (
+  id             SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  code           VARCHAR(64)       NOT NULL COMMENT 'resource, unit, building_level, …',
+  name           VARCHAR(190)      NOT NULL,
+  description    VARCHAR(500)          NULL,
+  payload_schema JSON                  NULL COMMENT 'описание ожидаемых полей payload',
+  position       SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+  is_active      TINYINT(1)        NOT NULL DEFAULT 1,
+  created_at     TIMESTAMP         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at     TIMESTAMP         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_effect_types_code (code),
+  KEY idx_effect_types_position (is_active, position)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--  Что конкретная технология добавляет в игру: новый ресурс, юнит, уровень
+--  здания, концепцию, карточку, ускорение добычи и так далее.
+--
+--  Свойство технологии, а не версии дерева: эффекты не переписываются
+--  при каждой генерации. Конкретные параметры лежат в payload (JSON),
+--  поэтому новый вид эффекта со своим набором полей не требует миграции.
+CREATE TABLE technology_effects (
+  id             INT UNSIGNED      NOT NULL AUTO_INCREMENT,
+  technology_id  INT UNSIGNED      NOT NULL,
+  effect_type_id SMALLINT UNSIGNED NOT NULL,
+  title          VARCHAR(190)      NOT NULL COMMENT 'как показываем в карточке',
+  description    TEXT                  NULL,
+  payload        JSON                  NULL COMMENT 'параметры вида эффекта',
+  position       SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+  created_at     TIMESTAMP         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at     TIMESTAMP         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_technology_effects_tech (technology_id, position),
+  KEY idx_technology_effects_type (effect_type_id),
+  CONSTRAINT fk_technology_effects_tech FOREIGN KEY (technology_id)
+    REFERENCES technologies (id) ON DELETE CASCADE,
+  CONSTRAINT fk_technology_effects_type FOREIGN KEY (effect_type_id)
+    REFERENCES effect_types (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------
@@ -283,39 +340,39 @@ INSERT INTO eras (id, code, name, default_position, is_standard) VALUES
   (14, 'digital', 'Цифровая эра', 14, 1),
   (15, 'future', 'Будущее', 15, 1);
 
--- 31 веток (18 научных + 13 культурных)
-INSERT INTO branches (id, tree_id, code, name, color) VALUES
-  (1, 1, 'agriculture', 'Сельское хозяйство', '#8bc34a'),
-  (2, 1, 'materials', 'Материалы и металлургия', '#9e9e9e'),
-  (3, 1, 'construction', 'Строительство и архитектура', '#a1887f'),
-  (4, 1, 'siege', 'Осадные вооружения', '#e57373'),
-  (5, 1, 'ranged', 'Стрелковое оружие', '#ef6c00'),
-  (6, 1, 'mobility', 'Конница и бронетехника', '#6d4c41'),
-  (7, 1, 'naval', 'Мореплавание и флот', '#4fc3f7'),
-  (8, 1, 'science', 'Наука и приборы', '#7e57c2'),
-  (9, 1, 'medicine', 'Медицина', '#ec407a'),
-  (10, 1, 'energy', 'Энергетика', '#fbc02d'),
-  (11, 1, 'transport', 'Наземный транспорт', '#795548'),
-  (12, 1, 'communication', 'Связь и информация', '#26a69a'),
-  (13, 1, 'economy', 'Экономика и финансы', '#c0ca33'),
-  (14, 1, 'industry', 'Промышленность и автоматизация', '#607d8b'),
-  (15, 1, 'aviation', 'Авиация и космонавтика', '#5c6bc0'),
-  (16, 1, 'chemistry', 'Химия', '#66bb6a'),
-  (17, 1, 'computing', 'Вычисления и ИИ', '#29b6f6'),
-  (18, 1, 'biotech', 'Биотехнологии', '#ab47bc'),
-  (19, 2, 'governance', 'Управление и государство', '#5c6bc0'),
-  (20, 2, 'law', 'Право и правосудие', '#8d6e63'),
-  (21, 2, 'religion', 'Религия и верования', '#ba68c8'),
-  (22, 2, 'military_doctrine', 'Военная организация', '#e57373'),
-  (23, 2, 'economy_social', 'Экономика и торговля', '#c0ca33'),
-  (24, 2, 'education', 'Образование', '#26a69a'),
-  (25, 2, 'arts', 'Культура и искусство', '#f06292'),
-  (26, 2, 'diplomacy', 'Дипломатия', '#4fc3f7'),
-  (27, 2, 'society', 'Общество и права', '#66bb6a'),
-  (28, 2, 'urbanism', 'Городская жизнь', '#a1887f'),
-  (29, 2, 'media', 'Медиа и коммуникация', '#29b6f6'),
-  (30, 2, 'ideology', 'Идеологии', '#ef6c00'),
-  (31, 2, 'future_society', 'Этика будущего', '#ab47bc');
+-- 31 категорий (18 научных + 13 культурных)
+INSERT INTO branches (id, tree_id, code, name, color, position) VALUES
+  (1, 1, 'agriculture', 'Сельское хозяйство', '#8bc34a', 1),
+  (2, 1, 'materials', 'Материалы и металлургия', '#9e9e9e', 2),
+  (3, 1, 'construction', 'Строительство и архитектура', '#a1887f', 3),
+  (4, 1, 'siege', 'Осадные вооружения', '#e57373', 4),
+  (5, 1, 'ranged', 'Стрелковое оружие', '#ef6c00', 5),
+  (6, 1, 'mobility', 'Конница и бронетехника', '#6d4c41', 6),
+  (7, 1, 'naval', 'Мореплавание и флот', '#4fc3f7', 7),
+  (8, 1, 'science', 'Наука и приборы', '#7e57c2', 8),
+  (9, 1, 'medicine', 'Медицина', '#ec407a', 9),
+  (10, 1, 'energy', 'Энергетика', '#fbc02d', 10),
+  (11, 1, 'transport', 'Наземный транспорт', '#795548', 11),
+  (12, 1, 'communication', 'Связь и информация', '#26a69a', 12),
+  (13, 1, 'economy', 'Экономика и финансы', '#c0ca33', 13),
+  (14, 1, 'industry', 'Промышленность и автоматизация', '#607d8b', 14),
+  (15, 1, 'aviation', 'Авиация и космонавтика', '#5c6bc0', 15),
+  (16, 1, 'chemistry', 'Химия', '#66bb6a', 16),
+  (17, 1, 'computing', 'Вычисления и ИИ', '#29b6f6', 17),
+  (18, 1, 'biotech', 'Биотехнологии', '#ab47bc', 18),
+  (19, 2, 'governance', 'Управление и государство', '#5c6bc0', 19),
+  (20, 2, 'law', 'Право и правосудие', '#8d6e63', 20),
+  (21, 2, 'religion', 'Религия и верования', '#ba68c8', 21),
+  (22, 2, 'military_doctrine', 'Военная организация', '#e57373', 22),
+  (23, 2, 'economy_social', 'Экономика и торговля', '#c0ca33', 23),
+  (24, 2, 'education', 'Образование', '#26a69a', 24),
+  (25, 2, 'arts', 'Культура и искусство', '#f06292', 25),
+  (26, 2, 'diplomacy', 'Дипломатия', '#4fc3f7', 26),
+  (27, 2, 'society', 'Общество и права', '#66bb6a', 27),
+  (28, 2, 'urbanism', 'Городская жизнь', '#a1887f', 28),
+  (29, 2, 'media', 'Медиа и коммуникация', '#29b6f6', 29),
+  (30, 2, 'ideology', 'Идеологии', '#ef6c00', 30),
+  (31, 2, 'future_society', 'Этика будущего', '#ab47bc', 31);
 
 -- 353 позиций каталога (187 технологий + 166 соц. концепций)
 INSERT INTO technologies (id, tree_id, code, name, branch_id, default_era_id, is_standard) VALUES
@@ -1024,4 +1081,16 @@ INSERT INTO technology_prereqs (technology_id, prereq_technology_id) VALUES
   (352, 351),
   (352, 316),
   (353, 352);
+
+-- Стартовые виды игровых эффектов. Список открытый: новые заводятся
+-- через админку, миграция для этого не нужна.
+INSERT INTO effect_types (id, code, name, description, payload_schema, position) VALUES
+  (1, 'resource', 'Новый ресурс', 'Открывает добычу или использование ресурса', '{"resource_code":"string","base_rate":"number"}', 1),
+  (2, 'unit', 'Новый юнит', 'Даёт доступ к боевому или гражданскому юниту', '{"unit_code":"string","replaces_unit_code":"string?"}', 2),
+  (3, 'building', 'Новое здание', 'Открывает постройку здания', '{"building_code":"string"}', 3),
+  (4, 'building_level', 'Уровень здания', 'Открывает следующий уровень уже доступного здания', '{"building_code":"string","level":"number"}', 4),
+  (5, 'concept', 'Игровая концепция', 'Вводит механику: торговля, дипломатия, шпионаж и т.п.', '{"concept_code":"string"}', 5),
+  (6, 'card', 'Карточка', 'Добавляет карточку в колоду игрока', '{"card_code":"string","slot":"string?"}', 6),
+  (7, 'resource_rate', 'Ускорение добычи', 'Меняет скорость добычи ресурса', '{"resource_code":"string","percent":"number"}', 7),
+  (8, 'bonus', 'Пассивный бонус', 'Постоянный эффект без отдельного объекта в игре', '{"target":"string","percent":"number"}', 8);
 
