@@ -114,8 +114,20 @@ PHP должен уметь писать только в каталог загр
 
 ```bash
 chown -R $WEBUSER:$WEBUSER $APP
-chmod -R 755 $APP
 chmod -R 775 $APP/public/uploads
+```
+
+Права на сам код менять не нужно: git выкладывает файлы с корректными
+644 и каталоги с 755. **Не делайте `chmod -R 755` на каталог репозитория** —
+это ставит признак «исполняемый» всем файлам подряд, а git считает такое
+изменением содержимого и потом отказывается делать `git pull` со словами
+«Your local changes would be overwritten by merge».
+
+Если это уже случилось, лечится одной командой — она велит git не смотреть
+на признак исполняемости, содержимое файлов при этом не трогается:
+
+```bash
+git config core.fileMode false
 ```
 
 Для варианта А отдельно смените владельца самой ссылки — ключ `-h` меняет
@@ -342,9 +354,19 @@ chown -R www-root:www-root /var/www/www-root/data/data/civi/civi
   git config --global --add safe.directory /var/www/www-root/data/data/civi/civi
   ```
 
-- `Your local changes ... would be overwritten` — файлы репозитория правили
-  на сервере. Посмотрите, что именно, командой `git status`, и либо сохраните
-  правки (`git stash`), либо откатите их (`git checkout -- путь`).
+- `Your local changes ... would be overwritten` — чаще всего файлы никто
+  не правил, а на каталог репозитория выполняли `chmod -R 755`: git видит
+  сменившийся признак исполняемости как изменение. Проверьте командой
+  `git diff --summary | head` — если там строки `mode change 100644 => 100755`,
+  выполните:
+
+  ```bash
+  git config core.fileMode false
+  ```
+
+  После этого `git status` станет чистым, содержимое файлов не пострадает.
+  Если же правки настоящие, сохраните их (`git stash`) или откатите
+  (`git checkout -- путь`).
 
 **Нужна ли миграция.** Смотрите, изменилось ли что-то в `db/`:
 
@@ -376,6 +398,15 @@ cd /var/www/www-root/data/data/civi/civi
 ```bash
 git pull origin main
 ```
+
+Убедитесь, что код действительно обновился, иначе накатите старую миграцию:
+
+```bash
+grep -m1 "позиций каталога" db/migrations/0001_create_tech_tree_versions.sql
+```
+
+Должно быть `567 позиций каталога`. Если `353` — `git pull` не прошёл;
+разберитесь с ним (см. раздел 8 про `core.fileMode`) и повторите.
 
 Резервная копия — на случай, если в базе всё-таки было нужное:
 
@@ -432,4 +463,5 @@ mysql -u civi -p civi -e "SELECT (SELECT COUNT(*) FROM technologies) AS tehnolog
 | `ln: File exists` | ссылка уже создана прошлой попыткой, в том числе битой. Используйте `ln -sfn` — она заменяет ссылку на месте |
 | Ошибка 500 сразу после установки | чаще всего `.htaccess` с директивой `php_flag` при PHP-FPM. В комплекте такие директивы обёрнуты в `IfModule`; проверьте свои `.htaccess` выше по дереву |
 | `Table 'technologies' already exists` при накате | база не пуста, нужна переустановка — раздел 9 |
-| В админке 353 технологии вместо 567 | миграцию накатили до `git pull`; повторите раздел 9 целиком |
+| В админке 353 технологии вместо 567 | миграцию накатили до `git pull`, а сам `git pull` не прошёл. Проверьте `git log --oneline -1` и раздел 8 про `core.fileMode` |
+| `git pull` пишет про local changes, хотя ничего не правили | делали `chmod -R 755` на репозиторий; выполните `git config core.fileMode false` |
