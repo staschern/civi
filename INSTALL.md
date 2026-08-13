@@ -150,8 +150,9 @@ FLUSH PRIVILEGES;
 > ALTER USER 'civi'@'localhost' IDENTIFIED WITH mysql_native_password BY 'ПАРОЛЬ';
 > ```
 
-Накатываем миграцию — в ней и схема, и стандартный набор (15 эпох,
-31 категория, 353 технологии, 349 связей каталога, 8 видов игровых эффектов):
+Накатываем миграцию — в ней и схема, и стандартный набор: 15 эпох,
+41 категория, 567 технологий (294 научных и 273 культурных), 8 видов игровых
+эффектов, а для каменного века ещё описания, исторические справки и картинки:
 
 ```bash
 mysql -u civi -p civi < db/migrations/0001_create_tech_tree_versions.sql
@@ -161,7 +162,7 @@ mysql -u civi -p civi < db/migrations/0001_create_tech_tree_versions.sql
 
 ```bash
 mysql -u civi -p civi -e "SELECT COUNT(*) FROM technologies WHERE is_standard = 1;"
-# ожидаем 353
+# ожидаем 567
 ```
 
 ## 4. Конфигурация и пароль
@@ -356,6 +357,63 @@ git diff --name-only HEAD@{1} HEAD -- db/
 Миграция `0001` накатывается только на пустую базу: она создаёт таблицы
 и заливает стандартный набор, повторно её запускать не нужно.
 
+## 9. Переустановка базы с нуля
+
+Нужна, когда изменился состав каталога или схема: миграция `0001` рассчитана
+на пустую базу и повторно поверх существующих таблиц не накатывается.
+
+**Всё содержимое базы при этом теряется** — сохранённые версии деревьев,
+правки каталога, загруженные картинки в записях. Каталог и схема приедут
+заново из репозитория, но ваши версии придётся сгенерировать повторно.
+
+Команды по одной строке.
+
+Сначала обновите код, иначе накатите старую миграцию:
+
+```bash
+cd /var/www/www-root/data/data/civi/civi
+```
+```bash
+git pull origin main
+```
+
+Резервная копия — на случай, если в базе всё-таки было нужное:
+
+```bash
+mysqldump -u civi -p --single-transaction civi > ~/civi-backup-$(date +%F).sql
+```
+
+Снос и создание пустой базы:
+
+```bash
+mysql -u root -p -e "DROP DATABASE civi; CREATE DATABASE civi CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+```
+
+> **Если нет прав на `DROP DATABASE`** (база заведена через панель, а у пользователя
+> только права внутри неё) — сносим не базу, а таблицы:
+>
+> ```bash
+> mysql -u civi -p civi -e "SET FOREIGN_KEY_CHECKS=0; DROP TABLE IF EXISTS \`tree_version_links\`,\`tree_version_nodes\`,\`tree_version_era_lanes\`,\`tree_version_eras\`,\`tree_versions\`,\`technology_effects\`,\`technology_prereqs\`,\`technologies\`,\`effect_types\`,\`branches\`,\`eras\`,\`trees\`; SET FOREIGN_KEY_CHECKS=1;"
+> ```
+
+Накат миграции:
+
+```bash
+mysql -u civi -p civi < db/migrations/0001_create_tech_tree_versions.sql
+```
+
+Проверка, что приехало именно новое содержимое:
+
+```bash
+mysql -u civi -p civi -e "SELECT (SELECT COUNT(*) FROM technologies) AS tehnologiy, (SELECT COUNT(*) FROM branches) AS kategoriy, (SELECT COUNT(*) FROM eras) AS epoh, (SELECT COUNT(*) FROM technologies WHERE historical_note IS NOT NULL) AS so_spravkoy;"
+```
+
+Ожидаем `567 / 41 / 15 / 37`. Если технологий 353, а категорий 31 — накатилась
+старая миграция, то есть `git pull` не был выполнен до наката.
+
+После этого зайдите в админку и сгенерируйте версию заново: старые версии
+удалены вместе с базой.
+
 ## Диагностика
 
 | Симптом | Причина |
@@ -373,3 +431,5 @@ git diff --name-only HEAD@{1} HEAD -- db/
 | 403 или 404 на весь подкаталог | симлинк битый либо принадлежит `root`: проверьте `ls -l $SITE/civi` и выполните `chown -h` |
 | `ln: File exists` | ссылка уже создана прошлой попыткой, в том числе битой. Используйте `ln -sfn` — она заменяет ссылку на месте |
 | Ошибка 500 сразу после установки | чаще всего `.htaccess` с директивой `php_flag` при PHP-FPM. В комплекте такие директивы обёрнуты в `IfModule`; проверьте свои `.htaccess` выше по дереву |
+| `Table 'technologies' already exists` при накате | база не пуста, нужна переустановка — раздел 9 |
+| В админке 353 технологии вместо 567 | миграцию накатили до `git pull`; повторите раздел 9 целиком |
