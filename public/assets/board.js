@@ -91,6 +91,7 @@
         '<a class="edit" href="index.php?p=technology&id=' + n.tech_id + '">' + escapeHtml(n.name) + '</a>' +
         (n.source === 'manual' ? '<span class="tag-manual">вручную</span>' : '') +
       '</div>' +
+      '<span class="cost" title="Стоимость: растёт от столбца к столбцу">' + n.cost + '</span>' +
       '<button class="drop" title="Убрать с доски этой версии">×</button>';
 
     el.querySelector('.drop').addEventListener('click', function () {

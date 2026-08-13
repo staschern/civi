@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img">
+  <title>barter</title>
+  <circle cx="32" cy="32" r="30" fill="#efeae0" stroke="#d8d3c7" stroke-width="1.5"/>
+  <path d="M14 24h28l-8-8 M50 40H22l8 8 M14 24l8-8 M50 40l-8 8" fill="none" stroke="#c0ca33" stroke-width="3"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

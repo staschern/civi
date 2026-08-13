@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img">
+  <title>taboo</title>
+  <circle cx="32" cy="32" r="30" fill="#efeae0" stroke="#d8d3c7" stroke-width="1.5"/>
+  <path d="M32 10a22 22 0 1 0 .1 0z M17 17l30 30" fill="none" stroke="#c62828" stroke-width="3"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

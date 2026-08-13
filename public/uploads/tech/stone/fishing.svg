@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img">
+  <title>fishing</title>
+  <circle cx="32" cy="32" r="30" fill="#efeae0" stroke="#d8d3c7" stroke-width="1.5"/>
+  <path d="M14 32c8-10 24-10 32 0-8 10-24 10-32 0z M46 32l8-6v12z M24 30a2 2 0 1 0 .1 0z M12 46c6 4 12 4 18 0s12-4 18 0" fill="none" stroke="#4fc3f7" stroke-width="3"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

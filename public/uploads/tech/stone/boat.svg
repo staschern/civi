@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img">
+  <title>boat</title>
+  <circle cx="32" cy="32" r="30" fill="#efeae0" stroke="#d8d3c7" stroke-width="1.5"/>
+  <path d="M10 40h44l-6 12H16z M32 38V14 M32 16l16 8-16 6z M10 44c6 4 12 4 18 0s12-4 18 0" fill="none" stroke="#4fc3f7" stroke-width="3"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

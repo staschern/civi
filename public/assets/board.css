@@ -60,6 +60,11 @@ svg.edges{position:absolute;top:0;left:0;pointer-events:none;overflow:visible}
 }
 .node:hover .drop{display:block}
 .node .drop:hover{color:var(--danger)}
+.node .cost{
+  position:absolute;bottom:3px;right:6px;font-size:10px;font-weight:600;
+  color:var(--text-faint);font-variant-numeric:tabular-nums;
+}
+.node{padding-bottom:14px}
 .node .tag-manual{
   display:inline-block;font-size:9px;padding:1px 5px;border-radius:99px;
   background:var(--accent);color:var(--accent-ink);margin-left:4px;vertical-align:middle;

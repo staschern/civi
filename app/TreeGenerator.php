@@ -10,8 +10,10 @@ namespace Civi;
  * даёт одну и ту же раскладку, поэтому версию можно пересобрать по коду.
  *
  * Правила:
- *   - у эпохи от 2 до 5 столбцов, каждый следующий добавляется с падающей
- *     вероятностью и только если карточек хватает на две в столбце;
+ *   - у эпохи от 2 до 3 столбцов, третий добавляется случайно и только
+ *     если карточек хватает на две в столбце;
+ *   - технологии одной категории внутри эпохи расходятся по разным
+ *     столбцам слева направо, поэтому внутри ветки хронология не путается;
  *   - столбцы нумеруются сквозной нумерацией через все эпохи;
  *   - технология без зависимостей возможна только в первом столбце
  *     первой эпохи;
@@ -24,7 +26,7 @@ namespace Civi;
 final class TreeGenerator
 {
     public const LANE_MIN = 2;
-    public const LANE_MAX = 5;
+    public const LANE_MAX = 3;
     private const LANE_P0 = 0.55;
     private const LANE_DECAY = 0.5;
     private const P_PREV_ERA = 0.78;
@@ -67,17 +69,50 @@ final class TreeGenerator
 
         $node = [];             // tech_id => ['col','lane','row','relaxed']
         foreach ($eras as $era) {
-            $inEra = $rng->shuffle($techsByEra[$era['id']] ?? []);
+            $inEra = $techsByEra[$era['id']] ?? [];
             $lanes = max(1, min($laneCounts[$era['id']] ?? self::LANE_MIN, count($inEra) ?: 1));
-            $base = intdiv(count($inEra), $lanes);
-            $rem = count($inEra) % $lanes;
-            $k = 0;
+
+            // Технологии одной категории идут по разным столбцам слева
+            // направо в порядке каталога: так шаги одной ветки не оказываются
+            // в одном столбце и внутри ветки сохраняется хронология.
+            $groups = [];
+            foreach ($inEra as $techId) {
+                $groups[$this->branchOf[$techId]][] = $techId;
+            }
+            // сначала длинные группы: им нужнее свободные подряд идущие столбцы
+            uasort($groups, static function ($a, $b) {
+                return count($b) <=> count($a);
+            });
+
+            $load = array_fill(0, $lanes, 0);
+            $assigned = array_fill(0, $lanes, []);
+            foreach ($groups as $group) {
+                $size = min(count($group), $lanes);
+                // стартовый столбец — тот, с которого группа ляжет ровнее всего
+                $bestStart = 0;
+                $bestWeight = null;
+                for ($start = 0; $start + $size <= $lanes; $start++) {
+                    $weight = 0;
+                    for ($i = 0; $i < $size; $i++) {
+                        $weight += $load[$start + $i];
+                    }
+                    if ($bestWeight === null || $weight < $bestWeight
+                        || ($weight === $bestWeight && $rng->next() < 0.5)) {
+                        $bestWeight = $weight;
+                        $bestStart = $start;
+                    }
+                }
+                foreach (array_values($group) as $i => $techId) {
+                    $lane = $bestStart + min($i, $size - 1);
+                    $assigned[$lane][] = $techId;
+                    $load[$lane]++;
+                }
+            }
+
             for ($lane = 0; $lane < $lanes; $lane++) {
-                $take = $base + ($lane < $rem ? 1 : 0);
-                for ($j = 0; $j < $take; $j++) {
-                    $techId = $inEra[$k++];
+                foreach ($rng->shuffle($assigned[$lane]) as $row => $techId) {
                     $gi = $firstColOfEra[$era['id']] + $lane;
-                    $node[$techId] = ['col' => $gi, 'lane' => $lane, 'row' => $j, 'relaxed' => false];
+                    $node[$techId] = ['col' => $gi, 'lane' => $lane, 'row' => $row, 'relaxed' => false];
                     $columns[$gi]['nodes'][] = $techId;
                 }
             }
@@ -181,12 +216,15 @@ final class TreeGenerator
      * Число столбцов эпохи: минимум два, каждый следующий с падающей
      * вероятностью и не больше, чем позволяет число карточек.
      */
-    public function rollLanes(int $nodeCount, Rng $rng): int
+    public function rollLanes(int $nodeCount, Rng $rng, int $minLanes = self::LANE_MIN): int
     {
         $cap = $nodeCount <= 1
             ? 1
             : min(self::LANE_MAX, max(self::LANE_MIN, intdiv($nodeCount, 2)));
-        $lanes = min(self::LANE_MIN, $cap);
+        // столбцов не может быть меньше, чем технологий одной категории
+        // в этой эпохе: иначе две из них встанут в один столбец
+        $cap = max($cap, min(self::LANE_MAX, $minLanes));
+        $lanes = min(max(self::LANE_MIN, $minLanes), $cap);
         $p = self::LANE_P0;
         while ($lanes < $cap && $rng->next() < $p) {
             $lanes++;

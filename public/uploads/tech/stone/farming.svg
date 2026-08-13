@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img">
+  <title>farming</title>
+  <circle cx="32" cy="32" r="30" fill="#efeae0" stroke="#d8d3c7" stroke-width="1.5"/>
+  <path d="M20 54V22 M20 22c0-6 4-10 8-10 M20 30c6 0 10-4 10-10 M44 54V22 M44 22c0-6-4-10-8-10 M44 30c-6 0-10-4-10-10 M12 54h40" fill="none" stroke="#8bc34a" stroke-width="3"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

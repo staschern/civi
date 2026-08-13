@@ -22,6 +22,7 @@ foreach ($data['trees'] as $tree) {
             'col' => (int) $n['global_column'], 'name' => $n['name'],
             'branch' => $n['branch_name'], 'color' => $n['branch_color'],
             'source' => $n['source'], 'image' => $n['image_path'],
+            'cost' => (int) $n['cost'],
             'tech_id' => (int) $n['technology_id'],
         ];
     }

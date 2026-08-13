@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img">
+  <title>shelter</title>
+  <circle cx="32" cy="32" r="30" fill="#efeae0" stroke="#d8d3c7" stroke-width="1.5"/>
+  <path d="M32 10L10 52h44z M32 26L20 52h24z M28 52v-8h8v8" fill="none" stroke="#8d6e63" stroke-width="3"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

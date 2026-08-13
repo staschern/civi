@@ -6,6 +6,10 @@
 --    * trees / eras / branches / technologies / technology_prereqs —
 --      каталог. Живёт вне версий, помечен флагом is_standard.
 --      Стандартный набор = всё, у чего is_standard = 1.
+--    * стоимость: base_cost в каталоге — ручная, cost у карточки версии —
+--      рассчитанная. Столбец правее дороже предыдущего примерно в полтора
+--      раза, внутри столбца стоимости расходятся случайно, но так, что
+--      диапазоны соседних столбцов не пересекаются.
 --    * effect_types / technology_effects — что технология добавляет в игру
 --      (ресурс, юнит, уровень здания, концепция, карточка, ускорение
 --      добычи…). Свойство технологии, общее для всех версий.
@@ -97,6 +101,7 @@ CREATE TABLE technologies (
   branch_id       SMALLINT UNSIGNED NOT NULL COMMENT 'категория технологии',
   default_era_id  SMALLINT UNSIGNED NOT NULL COMMENT 'эпоха по умолчанию при генерации',
   is_standard     TINYINT(1)        NOT NULL DEFAULT 1 COMMENT '1 — входит в стандартный набор',
+  base_cost       INT UNSIGNED          NULL COMMENT 'ручная стоимость; пусто — считает генератор по столбцу',
   image_path      VARCHAR(255)          NULL COMMENT 'путь к картинке относительно веб-корня',
   description     TEXT                  NULL COMMENT 'описание технологии для игрока',
   historical_note TEXT                  NULL COMMENT 'историческая справка',
@@ -264,6 +269,8 @@ CREATE TABLE tree_version_nodes (
   lane           SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT 'столбец внутри эпохи, 0..lanes-1',
   row_index      SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT 'место внутри столбца, сверху вниз',
   global_column  SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT 'сквозной номер столбца, 0..M',
+  cost           INT UNSIGNED      NOT NULL DEFAULT 0
+    COMMENT 'стоимость на этой доске: растёт от столбца к столбцу',
   source         ENUM('standard','manual') NOT NULL DEFAULT 'standard',
   is_relaxed     TINYINT(1)        NOT NULL DEFAULT 0
     COMMENT '1 — первый столбец эпохи, которому разрешили опереться глубже предыдущей эпохи',

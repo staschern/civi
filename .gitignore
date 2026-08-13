@@ -3,6 +3,7 @@
 
 # загруженные картинки технологий
 /public/uploads/tech/*
+!/public/uploads/tech/stone/
 !/public/uploads/tech/.gitkeep
 
 # зависимости вспомогательных скриптов (playwright-core для tools/audit-tree-layout.js)

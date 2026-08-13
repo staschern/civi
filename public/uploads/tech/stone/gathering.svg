@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img">
+  <title>gathering</title>
+  <circle cx="32" cy="32" r="30" fill="#efeae0" stroke="#d8d3c7" stroke-width="1.5"/>
+  <path d="M18 34h28l-4 20H22z M18 34c4-6 10-9 14-9s10 3 14 9 M32 25v-8 M28 20c-4-4-9-4-11-2 3 4 8 5 11 2z M36 20c4-4 9-4 11-2-3 4-8 5-11 2z" fill="none" stroke="#7cb342" stroke-width="3"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

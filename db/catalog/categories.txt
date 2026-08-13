@@ -1,0 +1,42 @@
+# дерево|код|название|цвет
+science|agriculture|Сельское хозяйство|#8bc34a
+science|foraging|Промыслы и добыча|#7cb342
+science|materials|Материалы и металлургия|#8d6e63
+science|textiles|Ткани и одежда|#bcaaa4
+science|construction|Строительство и архитектура|#a1887f
+science|siege|Осадные вооружения|#ef5350
+science|ranged|Стрелковое оружие|#ef6c00
+science|mobility|Конница и бронетехника|#795548
+science|naval|Мореплавание и флот|#4fc3f7
+science|science|Наука и приборы|#7e57c2
+science|physics|Физика и математика|#5c6bc0
+science|medicine|Медицина|#ec407a
+science|energy|Энергетика|#fbc02d
+science|transport|Наземный транспорт|#6d4c41
+science|communication|Связь и информация|#26a69a
+science|economy|Экономика и финансы|#c0ca33
+science|industry|Промышленность и автоматизация|#546e7a
+science|aerospace|Авиация и космонавтика|#5c6bc0
+science|chemistry|Химия|#66bb6a
+science|computing|Вычисления и ИИ|#29b6f6
+science|biotech|Биотехнологии|#ab47bc
+science|ecology|Экология и природа|#2e7d32
+culture|governance|Управление и государство|#5c6bc0
+culture|law|Право и правосудие|#8d6e63
+culture|religion|Религия и верования|#ab47bc
+culture|rituals|Обряды и традиции|#9575cd
+culture|philosophy|Философия и мысль|#7986cb
+culture|military|Военная организация|#ef5350
+culture|security|Безопасность и разведка|#c62828
+culture|economy|Экономика и торговля|#c0ca33
+culture|labor|Труд и ремёсла|#8d6e63
+culture|education|Образование|#26a69a
+culture|art|Культура и искусство|#ec407a
+culture|language|Язык и литература|#00897b
+culture|diplomacy|Дипломатия|#4fc3f7
+culture|society|Общество и права|#66bb6a
+culture|urban|Городская жизнь|#a1887f
+culture|media|Медиа и коммуникация|#29b6f6
+culture|ideology|Идеологии|#ff7043
+culture|sport|Спорт и состязания|#fbc02d
+culture|future_ethics|Этика будущего|#ba68c8

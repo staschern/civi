@@ -11,6 +11,19 @@ namespace Civi;
  */
 final class VersionRepository
 {
+    /**
+     * Стоимость технологии определяется её столбцом.
+     *
+     * Каждый следующий столбец дороже предыдущего в COST_STEP раз, внутри
+     * столбца стоимости расходятся на ±COST_JITTER. Разброс подобран так,
+     * чтобы диапазоны соседних столбцов не пересекались: самая дорогая
+     * технология столбца (1 + 0.15 = 1.15 базы) дешевле самой дешёвой
+     * технологии следующего (1.5 × 0.85 = 1.275 базы).
+     */
+    private const COST_BASE = 20;
+    private const COST_STEP = 1.5;
+    private const COST_JITTER = 0.15;
+
     /** @var Db */
     private $db;
 
@@ -118,7 +131,16 @@ final class VersionRepository
                           WHERE is_standard = 1 AND tree_id = ? AND default_era_id = ?',
                         [$tree['id'], $era['id']]
                     );
-                    $lanes = $generator->rollLanes($count, $layoutRng);
+                    // столбцов не меньше, чем технологий одной категории в эпохе:
+                    // иначе два шага одной ветки встанут в один столбец
+                    $maxPerBranch = (int) $db->value(
+                        'SELECT COALESCE(MAX(c), 0) FROM (
+                            SELECT COUNT(*) AS c FROM technologies
+                             WHERE is_standard = 1 AND tree_id = ? AND default_era_id = ?
+                             GROUP BY branch_id) x',
+                        [$tree['id'], $era['id']]
+                    );
+                    $lanes = $generator->rollLanes($count, $layoutRng, $maxPerBranch);
                     $laneCounts[$tree['id']][$era['id']] = $lanes;
                     $db->run(
                         'INSERT INTO tree_version_era_lanes (version_era_id, tree_id, lanes) VALUES (?, ?, ?)',
@@ -163,15 +185,18 @@ final class VersionRepository
                     $laneCounts[$tree['id']]
                 );
 
+                $costRng = new Rng($treeSeed ^ 0x5EED);
                 foreach ($layout['nodes'] as $techId => $n) {
                     $nodeIdByTech[$techId] = $db->insert(
                         'INSERT INTO tree_version_nodes
                             (version_id, tree_id, technology_id, version_era_id,
-                             lane, row_index, global_column, source, is_relaxed)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, \'standard\', ?)',
+                             lane, row_index, global_column, cost, source, is_relaxed)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, \'standard\', ?)',
                         [
                             $versionId, $tree['id'], $techId, $versionEraId[$n['era_id']],
-                            $n['lane'], $n['row'], $n['global_column'], $n['relaxed'] ? 1 : 0,
+                            $n['lane'], $n['row'], $n['global_column'],
+                            self::costFor((int) $n['global_column'], $costRng),
+                            $n['relaxed'] ? 1 : 0,
                         ]
                     );
                 }
@@ -224,7 +249,7 @@ final class VersionRepository
 
         $nodes = $this->db->all(
             'SELECT n.id, n.tree_id, n.technology_id, n.version_era_id, n.lane, n.row_index,
-                    n.global_column, n.source, n.is_relaxed,
+                    n.global_column, n.cost, n.source, n.is_relaxed,
                     t.code, t.name, t.image_path, t.description, t.historical_note,
                     b.id AS branch_id, b.name AS branch_name, b.color AS branch_color
                FROM tree_version_nodes n
@@ -338,6 +363,32 @@ final class VersionRepository
     {
         $this->db->run('DELETE FROM tree_version_nodes WHERE version_id = ? AND id = ?', [$versionId, $nodeId]);
         $this->db->run('UPDATE tree_versions SET status = \'edited\' WHERE id = ?', [$versionId]);
+    }
+
+    /**
+     * Стоимость технологии в заданном сквозном столбце.
+     *
+     * Диапазоны соседних столбцов гарантированно не пересекаются, поэтому
+     * любая технология столбца дороже любой технологии столбца левее
+     * и дешевле любой технологии столбца правее.
+     */
+    public static function costFor(int $globalColumn, Rng $rng): int
+    {
+        $base = self::COST_BASE * pow(self::COST_STEP, $globalColumn);
+        $jitter = 1.0 + (($rng->next() * 2) - 1) * self::COST_JITTER;
+
+        return max(1, (int) round($base * $jitter));
+    }
+
+    /** Границы диапазона стоимостей столбца — для подсказок в интерфейсе. */
+    public static function costRange(int $globalColumn): array
+    {
+        $base = self::COST_BASE * pow(self::COST_STEP, $globalColumn);
+
+        return [
+            (int) round($base * (1 - self::COST_JITTER)),
+            (int) round($base * (1 + self::COST_JITTER)),
+        ];
     }
 
     /**

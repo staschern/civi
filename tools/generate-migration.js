@@ -1,47 +1,47 @@
 #!/usr/bin/env node
 /*
- * Сборка миграции 0001 из двух источников:
- *   db/schema/0001_schema.sql — схема, правится руками;
- *   прототип доски           — каталог эпох, веток и технологий.
- *
- * Каталог тянем прямо из данных прототипа, чтобы стандартный набор в БД
- * был ровно тем же, что на доске, и не расходился с ней при правках.
+ * Сборка миграции 0001 из трёх источников:
+ *   db/schema/0001_schema.sql      — схема, правится руками;
+ *   db/catalog/categories.txt      — категории технологий;
+ *   db/catalog/technologies.txt    — сам каталог, размеченный по эпохам.
  *
  * Запуск из корня репозитория:
  *   node tools/generate-migration.js
  *
  * Результат перезаписывает db/migrations/0001_create_tech_tree_versions.sql.
- * Руками этот файл не правим — правим схему или прототип и пересобираем.
+ * Руками этот файл не правим — правим источники и пересобираем.
  */
 const fs = require('fs');
 const path = require('path');
 
 const root = path.resolve(__dirname, '..');
-const htmlPath = process.argv[2] || path.join(root, 'docs',
-  '2026.08.12 - Этап 1. Прототип дерева технологий (интерактив).html');
-const schemaPath = process.argv[3] || path.join(root, 'db', 'schema', '0001_schema.sql');
-const outPath = process.argv[4] || path.join(root, 'db', 'migrations',
-  '0001_create_tech_tree_versions.sql');
+const catalogDir = path.join(root, 'db', 'catalog');
+const schemaPath = path.join(root, 'db', 'schema', '0001_schema.sql');
+const outPath = path.join(root, 'db', 'migrations', '0001_create_tech_tree_versions.sql');
 
-const src = fs.readFileSync(htmlPath, 'utf8');
-const pick = (name) => {
-  const m = src.match(new RegExp('const ' + name + ' = (\\{.*?\\});\\n', 's'));
-  if(!m) throw new Error('не найден блок данных ' + name + ' в ' + htmlPath);
-  return JSON.parse(m[1]);
-};
-const TECH = pick('TECH_DATA');
-const CIVIC = pick('CIVIC_DATA');
-
-const q = s => "'" + String(s).replace(/\\/g, '\\\\').replace(/'/g, "''") + "'";
-const rows = list => list.map(r => '  (' + r.join(', ') + ')').join(',\n');
-
-const TREES = [
-  { id: 1, code: 'science', name: 'Дерево технологий', points: 'Наука', boost: 'Озарения', data: TECH },
-  { id: 2, code: 'culture', name: 'Дерево социальных концепций', points: 'Культура', boost: 'Вдохновения', data: CIVIC },
+const ERAS = [
+  ['stone', 'Каменный век'],
+  ['bronze', 'Бронзовый век'],
+  ['antiquity', 'Античность'],
+  ['early_medieval', 'Раннее Средневековье'],
+  ['high_medieval', 'Высокое Средневековье'],
+  ['exploration', 'Эпоха открытий'],
+  ['renaissance', 'Возрождение'],
+  ['enlightenment', 'Просвещение'],
+  ['industrial_rev', 'Промышленная революция'],
+  ['industrial', 'Индустриальная эра'],
+  ['modern', 'Новое время'],
+  ['atomic', 'Атомная эра'],
+  ['information', 'Информационная эра'],
+  ['digital', 'Цифровая эра'],
+  ['future', 'Будущее'],
 ];
 
-/* Стартовые виды игровых эффектов. payload_schema — подсказка админке,
-   какие поля спрашивать; список видов расширяется через интерфейс. */
+const TREES = [
+  { id: 1, code: 'science', name: 'Дерево технологий', points: 'Наука', boost: 'Озарения' },
+  { id: 2, code: 'culture', name: 'Дерево социальных концепций', points: 'Культура', boost: 'Вдохновения' },
+];
+
 const EFFECT_TYPES = [
   { code: 'resource', name: 'Новый ресурс',
     description: 'Открывает добычу или использование ресурса',
@@ -69,41 +69,83 @@ const EFFECT_TYPES = [
     schema: { target: 'string', percent: 'number' } },
 ];
 
-// эпохи: сетка у обоих деревьев одна и та же, поэтому каталог общий
-const eras = TECH.eras.slice().sort((a, b) => a.order - b.order);
-const civicEras = CIVIC.eras.slice().sort((a, b) => a.order - b.order);
-if(JSON.stringify(eras) !== JSON.stringify(civicEras)){
-  throw new Error('сетки эпох у деревьев разошлись — общий каталог эпох больше не годится');
+const q = s => "'" + String(s).replace(/\\/g, '\\\\').replace(/'/g, "''") + "'";
+const nullable = s => (s === undefined || s === null || s === '') ? 'NULL' : q(s);
+const rows = list => list.map(r => '  (' + r.join(', ') + ')').join(',\n');
+
+const readLines = f => fs.readFileSync(path.join(catalogDir, f), 'utf8')
+  .split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+
+/* Латинский код из русского названия. */
+const TRANSLIT = {
+  'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'e','ж':'zh','з':'z','и':'i','й':'i',
+  'к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ф':'f',
+  'х':'h','ц':'c','ч':'ch','ш':'sh','щ':'sch','ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya',
+};
+function slug(text){
+  const s = text.toLowerCase().split('').map(ch => TRANSLIT[ch] !== undefined ? TRANSLIT[ch] : ch).join('');
+  return s.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 70) || 'x';
 }
-const eraId = new Map(eras.map((e, i) => [e.id, i + 1]));
 
+// ---- категории -------------------------------------------------------
+const treeIdByCode = Object.fromEntries(TREES.map(t => [t.code, t.id]));
 const branches = [];
-TREES.forEach(t => t.data.branches.forEach(b =>
-  branches.push({ id: branches.length + 1, tree: t.id, code: b.id, name: b.name, color: b.color })));
-const branchId = new Map(branches.map(b => [b.tree + ':' + b.code, b.id]));
+const branchId = new Map();
+readLines('categories.txt').forEach(line => {
+  const [tree, code, name, color] = line.split('|');
+  if (!treeIdByCode[tree]) throw new Error('неизвестное дерево ' + tree);
+  const id = branches.length + 1;
+  branches.push({ id, tree: treeIdByCode[tree], code, name, color, position: id });
+  branchId.set(tree + ':' + code, id);
+});
 
+// ---- эпохи -----------------------------------------------------------
+const eraId = new Map(ERAS.map(([code], i) => [code, i + 1]));
+
+// ---- технологии ------------------------------------------------------
+const notes = loadNotes();
 const techs = [];
-TREES.forEach(t => t.data.nodes.forEach(n =>
-  techs.push({ id: techs.length + 1, tree: t.id, code: n.id, name: n.name, branch: n.branch, era: n.era })));
-const techId = new Map(techs.map(t => [t.code, t.id]));
-if(techId.size !== techs.length) throw new Error('коды технологий не уникальны');
+const seenCode = new Map();
+readLines('technologies.txt').forEach(line => {
+  const [era, tree, category, name] = line.split('|');
+  if (!eraId.has(era)) throw new Error('неизвестная эпоха ' + era + ' у «' + name + '»');
+  if (!branchId.has(tree + ':' + category)) throw new Error('нет категории ' + tree + '/' + category);
 
-const prereqs = [];
-TREES.forEach(t => t.data.nodes.forEach(n => n.prereqs.forEach(p => {
-  if(!techId.has(p)) throw new Error('пререквизит ' + p + ' не найден в каталоге');
-  if(p === n.id) throw new Error('технология ' + p + ' ссылается сама на себя');
-  prereqs.push([techId.get(n.id), techId.get(p)]);
-})));
+  let code = (tree === 'science' ? 't_' : 'c_') + slug(name);
+  if (seenCode.has(code)) throw new Error('повтор кода ' + code + ' («' + name + '»)');
+  seenCode.set(code, true);
 
+  const extra = notes[name] || {};
+  techs.push({
+    id: techs.length + 1,
+    tree: treeIdByCode[tree],
+    code, name,
+    branch: branchId.get(tree + ':' + category),
+    era: eraId.get(era),
+    image: extra.image,
+    description: extra.description,
+    historical_note: extra.historical_note,
+  });
+});
+
+/* Описания и исторические справки лежат отдельным файлом: их немного
+   и заполняются они по мере проработки эпох. */
+function loadNotes(){
+  const file = path.join(catalogDir, 'notes.json');
+  return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
+}
+
+// ---- сборка ----------------------------------------------------------
 const out = [];
 out.push(fs.readFileSync(schemaPath, 'utf8').trimEnd());
 out.push('');
 out.push('-- =====================================================================');
-out.push('--  Стандартный набор: всё, что на 2026.08.12 лежит в прототипе доски.');
-out.push('--  Все эти строки помечены is_standard = 1 и участвуют в каждой');
+out.push('--  Стандартный набор технологий.');
+out.push('--  Все строки помечены is_standard = 1 и участвуют в каждой');
 out.push('--  первоначальной генерации новой версии деревьев.');
 out.push('--');
-out.push('--  Секция собрана скриптом tools/generate-migration.js — руками не правим.');
+out.push('--  Секция собрана скриптом tools/generate-migration.js из файлов');
+out.push('--  db/catalog/ — руками не правим.');
 out.push('-- =====================================================================');
 out.push('');
 
@@ -111,27 +153,26 @@ out.push('INSERT INTO trees (id, code, name, points_name, boost_name, position) 
 out.push(rows(TREES.map(t => [t.id, q(t.code), q(t.name), q(t.points), q(t.boost), t.id])) + ';');
 out.push('');
 
-out.push('-- 15 эпох стандартной сетки (раздел 3.2 проектного документа)');
+out.push(`-- ${ERAS.length} эпох стандартной сетки`);
 out.push('INSERT INTO eras (id, code, name, default_position, is_standard) VALUES');
-out.push(rows(eras.map((e, i) => [eraId.get(e.id), q(e.id), q(e.name), i + 1, 1])) + ';');
+out.push(rows(ERAS.map(([code, name], i) => [i + 1, q(code), q(name), i + 1, 1])) + ';');
 out.push('');
 
-out.push(`-- ${branches.length} категорий (${TECH.branches.length} научных + ${CIVIC.branches.length} культурных)`);
+const sciCount = branches.filter(b => b.tree === 1).length;
+out.push(`-- ${branches.length} категорий (${sciCount} научных + ${branches.length - sciCount} культурных)`);
 out.push('INSERT INTO branches (id, tree_id, code, name, color, position) VALUES');
-out.push(rows(branches.map((b, i) => [b.id, b.tree, q(b.code), q(b.name), q(b.color), i + 1])) + ';');
+out.push(rows(branches.map(b => [b.id, b.tree, q(b.code), q(b.name), q(b.color), b.position])) + ';');
 out.push('');
 
-out.push(`-- ${techs.length} позиций каталога (${TECH.nodes.length} технологий + ${CIVIC.nodes.length} соц. концепций)`);
-out.push('INSERT INTO technologies (id, tree_id, code, name, branch_id, default_era_id, is_standard) VALUES');
+const sciTech = techs.filter(t => t.tree === 1).length;
+out.push(`-- ${techs.length} позиций каталога (${sciTech} технологий + ${techs.length - sciTech} соц. концепций)`);
+out.push('INSERT INTO technologies');
+out.push('  (id, tree_id, code, name, branch_id, default_era_id, is_standard,');
+out.push('   image_path, description, historical_note) VALUES');
 out.push(rows(techs.map(t => [
-  t.id, t.tree, q(t.code), q(t.name),
-  branchId.get(t.tree + ':' + t.branch), eraId.get(t.era), 1,
+  t.id, t.tree, q(t.code), q(t.name), t.branch, t.era, 1,
+  nullable(t.image), nullable(t.description), nullable(t.historical_note),
 ])) + ';');
-out.push('');
-
-out.push(`-- ${prereqs.length} авторских связей каталога (кросс-эпохальные, проставлены вручную)`);
-out.push('INSERT INTO technology_prereqs (technology_id, prereq_technology_id) VALUES');
-out.push(rows(prereqs) + ';');
 out.push('');
 
 out.push('-- Стартовые виды игровых эффектов. Список открытый: новые заводятся');
@@ -143,5 +184,8 @@ out.push(rows(EFFECT_TYPES.map((e, i) => [
 out.push('');
 
 fs.writeFileSync(outPath, out.join('\n') + '\n', 'utf8');
-console.log(`эпох=${eras.length} веток=${branches.length} технологий=${techs.length} связей=${prereqs.length}`);
+const withNotes = techs.filter(t => t.historical_note).length;
+const withImages = techs.filter(t => t.image).length;
+console.log(`эпох=${ERAS.length} категорий=${branches.length} технологий=${techs.length}`);
+console.log(`со справкой=${withNotes} с картинкой=${withImages}`);
 console.log('записано:', path.relative(root, outPath), fs.statSync(outPath).size, 'байт');
