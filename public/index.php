@@ -271,7 +271,7 @@ try {
             http_response_code(404);
             exit('Страница не найдена');
     }
-} catch (RuntimeException $e) {
+} catch (Civi\UserError $e) {
     // ожидаемые отказы бизнес-правил показываем человеку
     flash($e->getMessage(), 'error');
     redirect($_POST['back'] ?? $_GET['back'] ?? 'versions');
@@ -294,25 +294,25 @@ function upload_image(?array $file, array $config): ?string
         return null;
     }
     if ($file['error'] !== UPLOAD_ERR_OK) {
-        throw new RuntimeException('Не удалось загрузить файл, код ошибки ' . $file['error']);
+        throw new \Civi\UserError('Не удалось загрузить файл, код ошибки ' . $file['error']);
     }
     if ($file['size'] > 4 * 1024 * 1024) {
-        throw new RuntimeException('Картинка больше 4 МБ');
+        throw new \Civi\UserError('Картинка больше 4 МБ');
     }
 
     $info = @getimagesize($file['tmp_name']);
     $allowed = [IMAGETYPE_PNG => 'png', IMAGETYPE_JPEG => 'jpg', IMAGETYPE_GIF => 'gif', IMAGETYPE_WEBP => 'webp'];
     if ($info === false || !isset($allowed[$info[2]])) {
-        throw new RuntimeException('Поддерживаются только PNG, JPEG, GIF и WebP');
+        throw new \Civi\UserError('Поддерживаются только PNG, JPEG, GIF и WebP');
     }
 
     $dir = $config['uploads_dir'];
     if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
-        throw new RuntimeException('Каталог для картинок недоступен: ' . $dir);
+        throw new \Civi\UserError('Каталог для картинок недоступен: ' . $dir);
     }
     $name = bin2hex(random_bytes(8)) . '.' . $allowed[$info[2]];
     if (!move_uploaded_file($file['tmp_name'], rtrim($dir, '/') . '/' . $name)) {
-        throw new RuntimeException('Не удалось сохранить картинку в ' . $dir);
+        throw new \Civi\UserError('Не удалось сохранить картинку в ' . $dir);
     }
 
     return rtrim($config['uploads_url'], '/') . '/' . $name;

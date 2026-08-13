@@ -31,8 +31,11 @@ final class VersionRepository
                   FROM tree_versions v';
         $params = [];
         if ($search !== '') {
-            $sql .= ' WHERE v.name LIKE :q OR v.seed_code LIKE :q';
-            $params['q'] = '%' . $search . '%';
+            // одну именованную метку нельзя привязать к двум местам,
+            // если эмуляция подготовленных выражений выключена
+            $sql .= ' WHERE v.name LIKE :q_name OR v.seed_code LIKE :q_seed';
+            $params['q_name'] = '%' . $search . '%';
+            $params['q_seed'] = '%' . $search . '%';
         }
         $sql .= ' ORDER BY v.created_at DESC, v.id DESC';
 
@@ -270,7 +273,7 @@ final class VersionRepository
         $this->db->transaction(function (Db $db) use ($versionId, $technologyId, $lane) {
             $tech = $db->one('SELECT id, tree_id, default_era_id FROM technologies WHERE id = ?', [$technologyId]);
             if ($tech === null) {
-                throw new \RuntimeException('Технология не найдена');
+                throw new UserError('Технология не найдена');
             }
 
             $versionEra = $db->one(
@@ -278,7 +281,7 @@ final class VersionRepository
                 [$versionId, $tech['default_era_id']]
             );
             if ($versionEra === null) {
-                throw new \RuntimeException('В этой версии нет эпохи, к которой отнесена технология');
+                throw new UserError('В этой версии нет эпохи, к которой отнесена технология');
             }
 
             $lanes = (int) $db->value(

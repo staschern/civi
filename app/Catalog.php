@@ -98,7 +98,7 @@ final class Catalog
     {
         $count = (int) $this->db->value('SELECT COUNT(*) FROM technologies WHERE branch_id = ?', [$id]);
         if ($count > 0) {
-            throw new \RuntimeException(
+            throw new UserError(
                 'В категории ' . $count . ' технологий — сначала перенесите их в другую категорию'
             );
         }
@@ -138,8 +138,12 @@ final class Catalog
             $params['is_standard'] = (int) $filter['is_standard'];
         }
         if (!empty($filter['q'])) {
-            $sql .= ' AND (t.name LIKE :q OR t.code LIKE :q)';
-            $params['q'] = '%' . $filter['q'] . '%';
+            // метки намеренно разные: при отключённой эмуляции подготовленных
+            // выражений MySQL не позволяет привязать одну именованную метку
+            // к двум местам и отвечает «Invalid parameter number»
+            $sql .= ' AND (t.name LIKE :q_name OR t.code LIKE :q_code)';
+            $params['q_name'] = '%' . $filter['q'] . '%';
+            $params['q_code'] = '%' . $filter['q'] . '%';
         }
         $sql .= ' ORDER BY t.tree_id, e.default_position, b.position, t.name';
         if (!empty($filter['limit'])) {
@@ -199,7 +203,7 @@ final class Catalog
             'SELECT COUNT(*) FROM tree_version_nodes WHERE technology_id = ?', [$id]
         );
         if ($used > 0) {
-            throw new \RuntimeException(
+            throw new UserError(
                 'Технология стоит на досках ' . $used . ' версий — сначала уберите её оттуда'
             );
         }
@@ -263,7 +267,7 @@ final class Catalog
     {
         $schema = trim((string) ($data['payload_schema'] ?? ''));
         if ($schema !== '' && json_decode($schema) === null && json_last_error() !== JSON_ERROR_NONE) {
-            throw new \RuntimeException('Поле «схема параметров» должно быть корректным JSON');
+            throw new UserError('Поле «схема параметров» должно быть корректным JSON');
         }
 
         if ($id === null) {
@@ -301,7 +305,7 @@ final class Catalog
     {
         $used = (int) $this->db->value('SELECT COUNT(*) FROM technology_effects WHERE effect_type_id = ?', [$id]);
         if ($used > 0) {
-            throw new \RuntimeException(
+            throw new UserError(
                 'Вид используется в ' . $used . ' эффектах — отключите его вместо удаления'
             );
         }
@@ -322,7 +326,7 @@ final class Catalog
     {
         $payload = trim((string) ($data['payload'] ?? ''));
         if ($payload !== '' && json_decode($payload) === null && json_last_error() !== JSON_ERROR_NONE) {
-            throw new \RuntimeException('Поле «параметры» должно быть корректным JSON');
+            throw new UserError('Поле «параметры» должно быть корректным JSON');
         }
 
         if ($id === null) {
