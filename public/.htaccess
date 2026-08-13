@@ -1,13 +1,12 @@
-# Админка Civi. Точка входа одна — index.php, rewrite не требуется:
-# маршрут передаётся параметром p.
-
-# Каталог с загруженными картинками не должен исполнять код.
-<IfModule mod_php7.c>
-    php_flag engine off
-</IfModule>
+# Админка Civi. Точка входа одна — index.php, маршрут передаётся
+# параметром p, поэтому правила преобразования адресов не нужны.
 
 Options -Indexes
 
-<FilesMatch "\.(php)$">
-    Require all granted
+DirectoryIndex index.php
+
+# Служебные файлы репозитория наружу не отдаём, даже если каталог
+# приложения окажется внутри корня сайта.
+<FilesMatch "^\.(git|env)|composer\.(json|lock)$">
+    Require all denied
 </FilesMatch>

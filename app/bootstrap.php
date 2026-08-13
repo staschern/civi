@@ -45,6 +45,24 @@ if (!empty($config['debug'])) {
     ini_set('display_errors', '0');
 }
 
+/**
+ * Адрес каталога админки в вебе: '' если она в корне сайта, '/civi'
+ * если лежит в подкаталоге. Считаем из пути к точке входа, чтобы одна
+ * и та же конфигурация работала при любом размещении.
+ */
+function base_url(): string
+{
+    $script = (string) ($_SERVER['SCRIPT_NAME'] ?? '/index.php');
+    $dir = rtrim(str_replace('\\', '/', dirname($script)), '/');
+
+    return $dir === '' || $dir === '.' ? '' : $dir;
+}
+
+// Пустой uploads_url означает «вычислить по месту установки».
+if (empty($config['uploads_url'])) {
+    $config['uploads_url'] = base_url() . '/uploads/tech';
+}
+
 /** Экранирование для вывода в HTML. */
 function h($value): string
 {

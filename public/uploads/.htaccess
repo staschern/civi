@@ -1,4 +1,20 @@
-# В каталоге загрузок исполняемого кода быть не должно ни при каких условиях.
-php_flag engine off
+# Каталог загрузок: только отдача картинок, никакого исполнения кода.
+# Сюда попадают файлы от пользователя, поэтому запрет держим двойной —
+# он должен срабатывать и под модулем Apache, и под PHP-FPM.
+
 Options -Indexes -ExecCGI
-AddType text/plain .php .phtml .php7 .php8 .pl .py .cgi
+
+# mod_php: выключаем интерпретатор целиком.
+# Директива php_flag существует только в модуле, под FPM она приводит
+# к ошибке 500, поэтому обязательно внутри IfModule.
+<IfModule mod_php7.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+
+# PHP-FPM и любой другой обработчик: просто не отдаём такие файлы.
+<FilesMatch "\.(php|phar|phtml|php[0-9]|pl|py|cgi|sh|htaccess)$">
+    Require all denied
+</FilesMatch>
