@@ -31,6 +31,12 @@
   var CSRF = mount.dataset.csrf;
   var VERSION = Number(mount.dataset.version);
   var FOCUS = Number(mount.dataset.focus || 0);
+  var COST_BASE = Number(mount.dataset.costBase || 130);
+  var COST_STEP = 1.5;
+
+  /** Среднее столбца: база версии, умноженная на 1.5 в степени номера. */
+  function columnAverage(col) { return Math.round(COST_BASE * Math.pow(COST_STEP, col)); }
+  function money(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
 
   /* Режим правки связей: {node: id, side: 'out'|'in'}.
      'out' — назначаем, кому эта карточка открывает дорогу (правее),
@@ -82,13 +88,41 @@
 
       var inEra = tree.nodes.filter(function (n) { return n.era_id === era.era_id; });
       var lanesWord = era.lanes === 1 ? 'колонка' : (era.lanes < 5 ? 'колонки' : 'колонок');
+      var eraSum = inEra.reduce(function (a, n) { return a + n.cost; }, 0);
+      var tools = '';
+      for (var c = 0; c < era.lanes; c++) {
+        var gcol = globalColumn + c;
+        var colSum = inEra.filter(function (n) { return n.col === gcol; })
+                          .reduce(function (a, n) { return a + n.cost; }, 0);
+        tools +=
+          '<div class="col-tool" data-col="' + gcol + '" data-era="' + era.era_id + '">' +
+            '<span class="ct-title">Столбец ' + (gcol + 1) + '</span>' +
+            '<label class="ct-avg">среднее' +
+              '<input type="number" min="1" step="1" value="' + columnAverage(gcol) + '">' +
+            '</label>' +
+            '<button class="ct-apply" title="Применить среднее ко всем столбцам по коэффициенту 1.5">' +
+              'применить' +
+            '</button>' +
+            '<button class="ct-roll" title="Пересчитать стоимости этого столбца">пересчитать</button>' +
+            '<span class="ct-sum">сумма <b>' + money(colSum) + '</b></span>' +
+          '</div>';
+      }
+
       col.innerHTML =
         '<div class="era-head">' +
           '<div class="idx">Эпоха ' + (eraIndex + 1) + ' · столбцы ' +
             (globalColumn + 1) + '–' + (globalColumn + era.lanes) + '</div>' +
           '<div class="name">' + escapeHtml(era.name) + '</div>' +
           '<div class="count">' + inEra.length + ' позиций · ' + era.lanes + ' ' + lanesWord + '</div>' +
-        '</div><div class="node-list"></div>';
+          '<div class="era-cost">' +
+            '<button class="ct-roll era" data-era="' + era.era_id + '">пересчитать эпоху</button>' +
+            '<span class="ct-sum">итого <b>' + money(eraSum) + '</b></span>' +
+          '</div>' +
+        '</div>' +
+        '<div class="col-tools" style="grid-template-columns:repeat(' + era.lanes + ', var(--lane-w))">' +
+          tools +
+        '</div>' +
+        '<div class="node-list"></div>';
 
       var list = col.querySelector('.node-list');
       for (var lane = 0; lane < era.lanes; lane++) {
@@ -101,6 +135,7 @@
         list.appendChild(laneEl);
       }
 
+      wireCostTools(col, tree, era);
       globalColumn += era.lanes;
       boardEl.insertBefore(col, svgEl);
     });
@@ -112,6 +147,54 @@
       boardEl.querySelectorAll('.node-list').forEach(function (l) { l.style.height = target + 'px'; });
       requestAnimationFrame(function () { drawEdges(boardEl, svgEl, tree.id); });
     });
+  }
+
+  /* Кнопки стоимости: пересчёт столбца, пересчёт эпохи и правка среднего.
+     Правка среднего меняет базу всей версии, поэтому средние всех столбцов
+     едут следом по тому же коэффициенту 1.5. */
+  function wireCostTools(col, tree, era) {
+    col.querySelectorAll('.col-tool').forEach(function (tool) {
+      var gcol = Number(tool.dataset.col);
+      tool.querySelector('.ct-roll').addEventListener('click', function () {
+        recalc({ scope: 'column', tree_id: tree.id, column: gcol });
+      });
+      tool.querySelector('.ct-apply').addEventListener('click', function () {
+        var value = Number(tool.querySelector('input').value);
+        if (!value || value < 1) { alert('Среднее должно быть положительным числом'); return; }
+        recalc({ scope: 'version', column: gcol, average: value });
+      });
+      tool.querySelector('input').addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter') { ev.preventDefault(); tool.querySelector('.ct-apply').click(); }
+      });
+    });
+    var eraBtn = col.querySelector('.ct-roll.era');
+    if (eraBtn) {
+      eraBtn.addEventListener('click', function () {
+        recalc({ scope: 'era', tree_id: tree.id, version_era_id: era.era_id });
+      });
+    }
+  }
+
+  function recalc(params) {
+    var body = new URLSearchParams();
+    body.set('csrf', CSRF);
+    body.set('version_id', String(VERSION));
+    Object.keys(params).forEach(function (k) { body.set(k, String(params[k])); });
+
+    fetch('index.php?p=cost-recalc', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (!res.ok) { alert(res.error || 'Не удалось пересчитать стоимости'); return; }
+      COST_BASE = res.cost_base;
+      board.trees.forEach(function (tree) {
+        tree.nodes.forEach(function (n) {
+          if (res.costs[n.id] !== undefined) n.cost = res.costs[n.id];
+        });
+      });
+      redrawAll();
+    }).catch(function () { alert('Сервер недоступен, стоимости не изменены'); });
   }
 
   function redrawAll() {
@@ -244,8 +327,10 @@
       var id = Number(el.dataset.id);
       var other = nodeById(id);
       var same = other && other.tree.id === found.tree.id;
-      var ok = same && id !== self.id &&
-        (editing.side === 'out' ? other.node.col > self.col : other.node.col < self.col);
+      // Выбирать можно и карточки того же столбца: связь заставит их
+      // разъехаться — зависимая уедет правее, основа встанет левее,
+      // насколько позволяют её собственные основы и границы эпохи.
+      var ok = same && id !== self.id;
       el.classList.toggle('editing', id === self.id);
       el.classList.toggle('pickable', !!ok);
       el.classList.toggle('linked', !!linked[id]);
@@ -259,9 +344,10 @@
 
     setBanner('«' + self.name + '»: ' +
       (editing.side === 'out'
-        ? 'выберите, каким технологиям правее она открывает дорогу'
-        : 'выберите, от каких технологий левее она зависит') +
-      '. Повторный клик снимает связь, Esc — выйти.');
+        ? 'выберите, каким технологиям она открывает дорогу'
+        : 'выберите, от каких технологий она зависит') +
+      '. Можно брать и соседей по столбцу — карточки сами разъедутся. ' +
+      'Повторный клик снимает связь, Esc — выйти.');
   }
 
   function setBanner(text) {

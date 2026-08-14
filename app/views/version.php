@@ -122,6 +122,7 @@ foreach ($data['links'] as $l) {
      data-version="<?= (int) $version['id'] ?>"
      data-csrf="<?= h($csrf) ?>"
      data-focus="<?= (int) ($focus ?? 0) ?>"
+     data-cost-base="<?= (int) ($version['cost_base'] ?? 130) ?>"
      data-board="<?= h(json_encode($board, JSON_UNESCAPED_UNICODE)) ?>"></div>
 
 <form method="post" action="<?= h(url('version-remove-node')) ?>" id="remove-form" style="display:none">

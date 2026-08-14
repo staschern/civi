@@ -167,3 +167,24 @@ svg.edges{position:absolute;top:0;left:0;pointer-events:none;overflow:visible}
   background:var(--card-group);color:#fff;box-shadow:0 4px 12px rgba(0,0,0,.25);
 }
 #edit-banner.on{display:block}
+
+/* ---- панели стоимости ---- */
+.era-head .era-cost{display:flex;align-items:center;gap:10px;margin-top:6px}
+.era-head .era-cost .ct-sum{font-size:12px;color:var(--text-dim)}
+.era-head .era-cost .ct-sum b{color:var(--text);font-variant-numeric:tabular-nums}
+
+.col-tools{display:grid;gap:var(--lane-gap);margin-bottom:10px}
+.col-tool{
+  display:flex;flex-wrap:wrap;align-items:center;gap:6px;
+  padding:7px 9px;border:1px dashed var(--border);border-radius:9px;
+  background:var(--surface);font-size:11.5px;color:var(--text-dim);
+}
+.col-tool .ct-title{font-weight:700;color:var(--text);margin-right:2px}
+.col-tool .ct-avg{display:flex;align-items:center;gap:5px;margin:0}
+.col-tool .ct-avg input{
+  width:6em;margin:0;padding:3px 6px;font-size:11.5px;
+  font-variant-numeric:tabular-nums;
+}
+.col-tool button{padding:3px 8px;font-size:11px}
+.col-tool .ct-sum{margin-left:auto;white-space:nowrap}
+.col-tool .ct-sum b{color:var(--text);font-variant-numeric:tabular-nums}

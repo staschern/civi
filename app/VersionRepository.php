@@ -96,13 +96,14 @@ final class VersionRepository
         return $this->db->transaction(function (Db $db) use ($name, $seed, $seedCode, $parentId) {
             $versionId = $db->insert(
                 'INSERT INTO tree_versions
-                    (name, seed_code, seed_numbers, seed_science, seed_culture, seed_layout, parent_version_id)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)',
+                    (name, seed_code, seed_numbers, seed_science, seed_culture, seed_layout,
+                     cost_base, parent_version_id)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
                 [
                     ($name === null || $name === '') ? null : $name,
                     $seedCode,
                     json_encode(array_map('intval', $seed)),
-                    $seed[0], $seed[1], $seed[2], $parentId,
+                    $seed[0], $seed[1], $seed[2], self::COST_BASE, $parentId,
                 ]
             );
 
@@ -194,6 +195,7 @@ final class VersionRepository
                 );
 
                 $costRng = new Rng($treeSeed ^ 0x5EED);
+                $costBase = self::COST_BASE;
                 foreach ($layout['nodes'] as $techId => $n) {
                     $nodeIdByTech[$techId] = $db->insert(
                         'INSERT INTO tree_version_nodes
@@ -203,7 +205,7 @@ final class VersionRepository
                         [
                             $versionId, $tree['id'], $techId, $versionEraId[$n['era_id']],
                             $n['lane'], $n['row'], $n['global_column'],
-                            $baseCost[$techId] ?? self::costFor((int) $n['global_column'], $costRng),
+                            $baseCost[$techId] ?? self::costFor((int) $n['global_column'], $costRng, $costBase),
                             $n['relaxed'] ? 1 : 0,
                         ]
                     );
@@ -398,18 +400,18 @@ final class VersionRepository
      * любая технология столбца дороже любой технологии столбца левее
      * и дешевле любой технологии столбца правее.
      */
-    public static function costFor(int $globalColumn, Rng $rng): int
+    public static function costFor(int $globalColumn, Rng $rng, ?int $costBase = null): int
     {
-        $base = self::COST_BASE * pow(self::COST_STEP, $globalColumn);
+        $base = ($costBase ?? self::COST_BASE) * pow(self::COST_STEP, $globalColumn);
         $jitter = 1.0 + (($rng->next() * 2) - 1) * self::COST_JITTER;
 
         return max(1, (int) round($base * $jitter));
     }
 
     /** Границы диапазона стоимостей столбца — для подсказок в интерфейсе. */
-    public static function costRange(int $globalColumn): array
+    public static function costRange(int $globalColumn, ?int $costBase = null): array
     {
-        $base = self::COST_BASE * pow(self::COST_STEP, $globalColumn);
+        $base = ($costBase ?? self::COST_BASE) * pow(self::COST_STEP, $globalColumn);
 
         return [
             (int) round($base * (1 - self::COST_JITTER)),
@@ -592,15 +594,12 @@ final class VersionRepository
                     throw new UserError('Обратная связь уже есть — получилось бы кольцо');
                 }
 
-                // цель обязана уехать правее основы, но остаться в своей эпохе
-                $ranges = $this->eraColumnRanges($versionId, (int) $to['tree_id']);
-                $range = $ranges[(int) $to['version_era_id']] ?? null;
-                if ($range !== null && (int) $from['global_column'] + 1 > $range['last']) {
-                    throw new UserError(
-                        'Так нельзя: «' . $to['name'] . '» пришлось бы вынести за пределы своей эпохи'
-                    );
-                }
-
+                // Столбцы не проверяем заранее: связь допускается и между
+                // карточками одного столбца. Правильные позиции посчитает
+                // reposition() — зависимая уедет правее, а основа встанет
+                // настолько левее, насколько позволяют её собственные основы
+                // и границы эпохи. Если после этого связь всё равно
+                // не укладывается слева направо, ниже мы её отклоним.
                 $db->run(
                     'INSERT INTO tree_version_links (version_id, from_node_id, to_node_id, origin)
                      VALUES (?, ?, ?, \'manual\')',
@@ -610,6 +609,23 @@ final class VersionRepository
 
             $db->run('UPDATE tree_versions SET status = \'edited\' WHERE id = ?', [$versionId]);
             $this->reposition($versionId);
+
+            // после перестановки связь обязана идти строго слева направо;
+            // если места не нашлось — откатываем всю правку
+            if (!$exists) {
+                $bad = $db->one(
+                    'SELECT sf.global_column AS from_col, st.global_column AS to_col
+                       FROM tree_version_nodes sf, tree_version_nodes st
+                      WHERE sf.id = ? AND st.id = ?',
+                    [$fromNodeId, $toNodeId]
+                );
+                if ($bad !== null && (int) $bad['from_col'] >= (int) $bad['to_col']) {
+                    throw new UserError(
+                        'Так нельзя: «' . $from['name'] . '» некуда сдвинуть левее, '
+                        . 'а «' . $to['name'] . '» — правее в пределах своей эпохи'
+                    );
+                }
+            }
 
             return $this->boardState($versionId);
         });
@@ -737,6 +753,85 @@ final class VersionRepository
 
             $db->run('UPDATE tree_versions SET status = \'edited\' WHERE id = ?', [$versionId]);
             $this->reposition($versionId);
+        });
+    }
+
+    /**
+     * Пересчёт стоимостей по правилу столбцов.
+     *
+     * Среднее столбца = cost_base × 1.5^номер, внутри столбца стоимости
+     * расходятся на ±15%. Область задаётся: вся версия, одна эпоха
+     * или один столбец.
+     *
+     * Если передан $newAverage, он трактуется как желаемое среднее для
+     * столбца $scopeColumn: база версии пересчитывается так, чтобы
+     * средние во всех остальных столбцах поехали за ним по тому же
+     * коэффициенту 1.5.
+     *
+     * @param string $scope 'version' | 'era' | 'column'
+     */
+    public function recalcCosts(
+        int $versionId,
+        string $scope = 'version',
+        ?int $treeId = null,
+        ?int $versionEraId = null,
+        ?int $column = null,
+        ?int $newAverage = null
+    ): array {
+        return $this->db->transaction(function (Db $db) use (
+            $versionId, $scope, $treeId, $versionEraId, $column, $newAverage
+        ) {
+            if ($newAverage !== null) {
+                if ($newAverage < 1) {
+                    throw new UserError('Среднее должно быть положительным числом');
+                }
+                $base = (int) round($newAverage / pow(self::COST_STEP, max(0, (int) $column)));
+                $db->run('UPDATE tree_versions SET cost_base = ? WHERE id = ?', [max(1, $base), $versionId]);
+            }
+
+            $costBase = (int) $db->value('SELECT cost_base FROM tree_versions WHERE id = ?', [$versionId]);
+            if ($costBase < 1) {
+                $costBase = self::COST_BASE;
+            }
+
+            $sql = 'SELECT id, global_column FROM tree_version_nodes WHERE version_id = ?';
+            $params = [$versionId];
+            if ($scope === 'era') {
+                $sql .= ' AND tree_id = ? AND version_era_id = ?';
+                $params[] = $treeId;
+                $params[] = $versionEraId;
+            } elseif ($scope === 'column') {
+                $sql .= ' AND tree_id = ? AND global_column = ?';
+                $params[] = $treeId;
+                $params[] = $column;
+            }
+
+            // семя от версии и области: пересчёт одного столбца не должен
+            // менять стоимости в остальных
+            $rng = new Rng(($versionId * 7919) ^ (int) $costBase ^ (($column ?? -1) + 13));
+            $costs = [];
+            foreach ($db->all($sql, $params) as $row) {
+                $cost = self::costFor((int) $row['global_column'], $rng, $costBase);
+                $db->run('UPDATE tree_version_nodes SET cost = ? WHERE id = ?', [$cost, (int) $row['id']]);
+                $costs[(int) $row['id']] = $cost;
+            }
+
+            $db->run('UPDATE tree_versions SET status = \'edited\' WHERE id = ?', [$versionId]);
+
+            // ручная стоимость каталога сильнее расчётной — отдаём то,
+            // что будет реально показано на доске
+            foreach ($db->all(
+                'SELECT n.id, t.base_cost FROM tree_version_nodes n
+                   JOIN technologies t ON t.id = n.technology_id
+                  WHERE n.version_id = ? AND t.base_cost IS NOT NULL',
+                [$versionId]
+            ) as $row) {
+                if (isset($costs[(int) $row['id']])) {
+                    $costs[(int) $row['id']] = (int) $row['base_cost'];
+                }
+            }
+
+            return ['cost_base' => $costBase, 'costs' => $costs];
         });
     }
 

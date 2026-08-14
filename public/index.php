@@ -47,7 +47,7 @@ if (!$auth->isLoggedIn()) {
 // токеном: так изменение нельзя вызвать простой ссылкой или картинкой.
 $mutating = [
     'version-generate', 'version-rename', 'version-delete', 'version-add-tech', 'version-remove-node',
-    'link-toggle', 'link-bulk',
+    'link-toggle', 'link-bulk', 'cost-recalc',
     'category-save', 'category-delete', 'technology-save', 'technology-delete',
     'effect-save', 'effect-delete', 'effect-type-save', 'effect-type-delete',
 ];
@@ -153,6 +153,24 @@ try {
                 'node' => (int) $_POST['node_id'],
             ]);
             break;
+
+        // Пересчёт стоимостей: вся версия, одна эпоха или один столбец.
+        case 'cost-recalc':
+            header('Content-Type: application/json; charset=utf-8');
+            try {
+                $result = $versions->recalcCosts(
+                    (int) $_POST['version_id'],
+                    (string) ($_POST['scope'] ?? 'version'),
+                    !empty($_POST['tree_id']) ? (int) $_POST['tree_id'] : null,
+                    !empty($_POST['version_era_id']) ? (int) $_POST['version_era_id'] : null,
+                    isset($_POST['column']) && $_POST['column'] !== '' ? (int) $_POST['column'] : null,
+                    isset($_POST['average']) && $_POST['average'] !== '' ? (int) $_POST['average'] : null
+                );
+                echo json_encode(['ok' => true] + $result, JSON_UNESCAPED_UNICODE);
+            } catch (Civi\UserError $e) {
+                echo json_encode(['ok' => false, 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+            }
+            exit;
 
         case 'version-rename':
             $versions->rename((int) $_POST['id'], trim((string) ($_POST['name'] ?? '')));
