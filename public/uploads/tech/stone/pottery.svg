@@ -1,6 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img">
   <title>pottery</title>
-  <circle cx="32" cy="32" r="30" fill="#efeae0" stroke="#d8d3c7" stroke-width="1.5"/>
-  <path d="M22 18h20l-2 6c6 4 8 10 8 16 0 8-7 14-16 14s-16-6-16-14c0-6 2-12 8-16z M20 34h24" fill="none" stroke="#66bb6a" stroke-width="3"
-        stroke-linecap="round" stroke-linejoin="round"/>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4a2a1c"/><stop offset="1" stop-color="#b06a3a"/>
+    </linearGradient>
+    <radialGradient id="vig" cx="0.5" cy="0.42" r="0.75">
+      <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.35"/>
+    </radialGradient>
+  </defs>
+  <rect width="128" height="128" fill="url(#bg)"/>
+  <path d="M0 128V96q32-10 64 0t64 0V128z" fill="#5b3623"/><path d="M42 30h44l-6 14c14 10 18 24 18 34 0 16-16 26-34 26S30 94 30 78c0-10 4-24 18-34z" fill="#e2803f"/><path d="M34 70h60" fill="none" stroke="#f6c28b" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M44 88h40" fill="none" stroke="#f6c28b" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect width="128" height="128" fill="url(#vig)"/>
 </svg>

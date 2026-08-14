@@ -1,6 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img">
   <title>tools</title>
-  <circle cx="32" cy="32" r="30" fill="#efeae0" stroke="#d8d3c7" stroke-width="1.5"/>
-  <path d="M20 46l10-30 6 2-8 30z M38 14l8 4-14 32-7-3z M18 50h30v4H18z" fill="none" stroke="#8d6e63" stroke-width="3"
-        stroke-linecap="round" stroke-linejoin="round"/>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a3a44"/><stop offset="1" stop-color="#6f6f7d"/>
+    </linearGradient>
+    <radialGradient id="vig" cx="0.5" cy="0.42" r="0.75">
+      <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.35"/>
+    </radialGradient>
+  </defs>
+  <rect width="128" height="128" fill="url(#bg)"/>
+  <path d="M0 128V96q32-10 64 0t64 0V128z" fill="#4a4a55"/><polygon points="40,88 58,30 70,36 52,94" fill="#c8b8a0"/><polygon points="58,30 70,36 78,26 66,20" fill="#e8dfd0"/><path d="M74 92l26-24" fill="none" stroke="#8b5e3c" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><polygon points="96,72 112,56 120,64 104,80" fill="#b9c2cc"/>
+  <rect width="128" height="128" fill="url(#vig)"/>
 </svg>

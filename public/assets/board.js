@@ -97,13 +97,15 @@
         (EFFECT_ICON[e.code] || '•') + '</span>';
     }).join('');
 
-    // вся карточка — одна ссылка, поэтому открыть технологию можно
-    // кликом в любое место, а не только по названию
+    // Порядок в правой части сверху вниз: название, стоимость, эффекты.
+    // Вся карточка — одна ссылка, поэтому технология открывается кликом
+    // в любую точку, а не только по названию.
     el.innerHTML =
       '<a class="node-link" href="index.php?p=technology&id=' + n.tech_id + '">' +
         '<span class="node-art">' +
-          (n.image ? '<img src="' + escapeHtml(n.image) + '" alt="">' : '<span class="node-art-empty"></span>') +
-          '<span class="node-cost" title="Стоимость технологии">' + n.cost + '</span>' +
+          (n.image
+            ? '<img src="' + escapeHtml(n.image) + '" alt="">'
+            : '<span class="node-art-empty">' + escapeHtml(n.name.slice(0, 1)) + '</span>') +
         '</span>' +
         '<span class="node-body">' +
           '<span class="node-head">' +
@@ -111,7 +113,10 @@
             '<span class="node-name">' + escapeHtml(n.name) + '</span>' +
             (n.source === 'manual' ? '<span class="tag-manual">вручную</span>' : '') +
           '</span>' +
-          '<span class="node-effects">' + effects + '</span>' +
+          '<span class="node-cost" title="Стоимость технологии">' +
+            '<span class="node-cost-icon"></span>' + n.cost +
+          '</span>' +
+          '<span class="node-effects">' + (effects || '<span class="eff-none">нет эффектов</span>') + '</span>' +
         '</span>' +
       '</a>' +
       '<button class="drop" title="Убрать с доски этой версии">×</button>';

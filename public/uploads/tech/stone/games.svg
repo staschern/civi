@@ -1,6 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img">
   <title>games</title>
-  <circle cx="32" cy="32" r="30" fill="#efeae0" stroke="#d8d3c7" stroke-width="1.5"/>
-  <path d="M32 12a20 20 0 1 0 .1 0z M32 20l5 10 11 1-8 8 2 11-10-6-10 6 2-11-8-8 11-1z" fill="none" stroke="#fbc02d" stroke-width="3"
-        stroke-linecap="round" stroke-linejoin="round"/>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3f3a14"/><stop offset="1" stop-color="#a89840"/>
+    </linearGradient>
+    <radialGradient id="vig" cx="0.5" cy="0.42" r="0.75">
+      <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.35"/>
+    </radialGradient>
+  </defs>
+  <rect width="128" height="128" fill="url(#bg)"/>
+  <path d="M0 128V96q32-10 64 0t64 0V128z" fill="#4d4720"/><circle cx="64" cy="60" r="34" fill="#ffd166"/><polygon points="64,34 71,54 92,54 75,66 81,86 64,74 47,86 53,66 36,54 57,54" fill="#b06a1a"/>
+  <rect width="128" height="128" fill="url(#vig)"/>
 </svg>

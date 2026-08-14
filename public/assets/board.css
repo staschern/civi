@@ -56,23 +56,32 @@ svg.edges{position:absolute;top:0;left:0;pointer-events:none;overflow:visible}
 
 .node-link{display:flex;align-items:stretch;gap:12px;text-decoration:none;color:inherit;padding:0}
 .node-art{
-  position:relative;flex:0 0 auto;width:84px;align-self:stretch;
-  display:flex;align-items:center;justify-content:center;
+  position:relative;flex:0 0 auto;width:88px;align-self:stretch;
+  display:flex;align-items:center;justify-content:center;overflow:hidden;
   background:var(--surface-2);border-right:1px solid var(--border);
 }
-.node-art img{width:60px;height:60px;object-fit:contain;display:block}
+/* иллюстрация несёт собственный фон, поэтому занимает квадрат целиком */
+.node-art img{width:100%;height:100%;object-fit:cover;display:block}
 .node-art-empty{
-  width:44px;height:44px;border-radius:10px;border:1px dashed var(--border);
-  background:linear-gradient(135deg, transparent 45%, var(--border) 45%, var(--border) 55%, transparent 55%);
-  opacity:.5;
-}
-.node-cost{
-  position:absolute;top:4px;left:4px;min-width:26px;text-align:center;
-  padding:1px 5px;border-radius:7px;font-size:11px;font-weight:700;
-  background:var(--text);color:var(--surface);font-variant-numeric:tabular-nums;
+  display:flex;align-items:center;justify-content:center;width:100%;height:100%;
+  font-size:26px;font-weight:700;color:var(--surface);
+  background:linear-gradient(160deg, var(--branch, var(--accent)), rgba(0,0,0,.45));
 }
 
-.node-body{display:flex;flex-direction:column;justify-content:space-between;gap:6px;padding:10px 12px 8px 0;min-width:0;flex:1}
+.node-body{
+  display:flex;flex-direction:column;justify-content:flex-start;gap:5px;
+  padding:9px 12px 8px 11px;min-width:0;flex:1;
+}
+.node-cost{
+  display:inline-flex;align-items:center;gap:5px;align-self:flex-start;
+  padding:1px 8px 1px 6px;border-radius:99px;font-size:11.5px;font-weight:700;
+  background:var(--surface-2);color:var(--text-dim);font-variant-numeric:tabular-nums;
+}
+.node-cost-icon{
+  width:9px;height:9px;border-radius:50%;
+  background:linear-gradient(150deg, #ffd166, #e08e2b);
+}
+.node-effects .eff-none{font-size:10.5px;color:var(--text-faint);line-height:18px}
 .node-head{display:flex;align-items:flex-start;gap:7px}
 .node-dot{
   flex:0 0 auto;width:11px;height:11px;border-radius:4px;margin-top:4px;

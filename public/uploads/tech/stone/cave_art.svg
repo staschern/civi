@@ -1,6 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img">
   <title>cave_art</title>
-  <circle cx="32" cy="32" r="30" fill="#efeae0" stroke="#d8d3c7" stroke-width="1.5"/>
-  <path d="M12 46c6-14 12-22 20-22s14 8 20 22 M22 34c2-6 6-10 10-10s8 4 10 10 M26 20a3 3 0 1 0 .1 0z M40 46l6 8 M24 46l-6 8" fill="none" stroke="#ec407a" stroke-width="3"
-        stroke-linecap="round" stroke-linejoin="round"/>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a2418"/><stop offset="1" stop-color="#a0603a"/>
+    </linearGradient>
+    <radialGradient id="vig" cx="0.5" cy="0.42" r="0.75">
+      <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.35"/>
+    </radialGradient>
+  </defs>
+  <rect width="128" height="128" fill="url(#bg)"/>
+  <path d="M0 128V96q32-10 64 0t64 0V128z" fill="#4a2f1e"/><path d="M18 100c10-30 24-46 46-46s36 16 46 46z" fill="#c9743f"/><path d="M40 98c6-18 12-26 24-26s18 8 24 26z" fill="#e2a06a"/><circle cx="50" cy="66" r="6" fill="#2b1a14"/><path d="M84 100l12 16M40 100l-10 16" fill="none" stroke="#7a3f1f" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect width="128" height="128" fill="url(#vig)"/>
 </svg>

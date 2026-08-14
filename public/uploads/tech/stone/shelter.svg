@@ -1,6 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img">
   <title>shelter</title>
-  <circle cx="32" cy="32" r="30" fill="#efeae0" stroke="#d8d3c7" stroke-width="1.5"/>
-  <path d="M32 10L10 52h44z M32 26L20 52h24z M28 52v-8h8v8" fill="none" stroke="#8d6e63" stroke-width="3"
-        stroke-linecap="round" stroke-linejoin="round"/>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2f3a2a"/><stop offset="1" stop-color="#6c7f52"/>
+    </linearGradient>
+    <radialGradient id="vig" cx="0.5" cy="0.42" r="0.75">
+      <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.35"/>
+    </radialGradient>
+  </defs>
+  <rect width="128" height="128" fill="url(#bg)"/>
+  <path d="M0 128V96q32-10 64 0t64 0V128z" fill="#3d4a33"/><polygon points="64,22 108,100 20,100" fill="#8a5a33"/><polygon points="64,38 96,100 32,100" fill="#a76e3f"/><polygon points="64,66 82,100 46,100" fill="#3b2317"/><circle cx="102" cy="26" r="10" fill="#ffe066"/>
+  <rect width="128" height="128" fill="url(#vig)"/>
 </svg>

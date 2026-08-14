@@ -1,6 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img">
   <title>mysticism</title>
-  <circle cx="32" cy="32" r="30" fill="#efeae0" stroke="#d8d3c7" stroke-width="1.5"/>
-  <path d="M32 12a10 10 0 1 0 .1 0z M14 46c4-10 10-14 18-14s14 4 18 14 M20 20l-6-6 M44 20l6-6 M32 54v-8" fill="none" stroke="#7986cb" stroke-width="3"
-        stroke-linecap="round" stroke-linejoin="round"/>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1e2444"/><stop offset="1" stop-color="#5a63a8"/>
+    </linearGradient>
+    <radialGradient id="vig" cx="0.5" cy="0.42" r="0.75">
+      <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.35"/>
+    </radialGradient>
+  </defs>
+  <rect width="128" height="128" fill="url(#bg)"/>
+  <path d="M0 128V96q32-10 64 0t64 0V128z" fill="#282e56"/><circle cx="64" cy="40" r="14" fill="#ffe066"/><path d="M28 104c6-20 18-30 36-30s30 10 36 30z" fill="#8f7fd6"/><path d="M24 30l10 8M104 30l-10 8" fill="none" stroke="#ffe066" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect width="128" height="128" fill="url(#vig)"/>
 </svg>

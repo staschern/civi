@@ -1,6 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img">
   <title>domestication</title>
-  <circle cx="32" cy="32" r="30" fill="#efeae0" stroke="#d8d3c7" stroke-width="1.5"/>
-  <path d="M16 40c0-8 6-14 14-14h6c8 0 14 6 14 14v10h-8V40h-4v10h-8V40h-4v10h-8z M22 26l-4-8 8 2 M42 26l4-8-8 2" fill="none" stroke="#a1887f" stroke-width="3"
-        stroke-linecap="round" stroke-linejoin="round"/>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4a3620"/><stop offset="1" stop-color="#a97c4e"/>
+    </linearGradient>
+    <radialGradient id="vig" cx="0.5" cy="0.42" r="0.75">
+      <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.35"/>
+    </radialGradient>
+  </defs>
+  <rect width="128" height="128" fill="url(#bg)"/>
+  <path d="M0 128V96q32-10 64 0t64 0V128z" fill="#5b4126"/><path d="M34 66h44c10 0 16 8 16 18v18h-12V84h-8v18H54V84h-8v18H34z" fill="#f2e8d5"/><polygon points="34,66 26,48 44,56" fill="#f2e8d5"/><polygon points="78,66 92,50 84,68" fill="#f2e8d5"/><circle cx="48" cy="60" r="4" fill="#2b1a14"/>
+  <rect width="128" height="128" fill="url(#vig)"/>
 </svg>

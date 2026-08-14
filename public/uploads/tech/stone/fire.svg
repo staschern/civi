@@ -1,6 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img">
   <title>fire</title>
-  <circle cx="32" cy="32" r="30" fill="#efeae0" stroke="#d8d3c7" stroke-width="1.5"/>
-  <path d="M32 54c-9 0-15-6-15-13 0-8 7-11 8-19 0-4-1-6-1-6 6 2 10 7 11 12 2-4 2-8 1-12 8 5 11 14 11 21 0 9-6 17-15 17z M32 47c-4 0-6-3-6-6 0-4 4-5 4-10 4 3 8 6 8 11 0 3-2 5-6 5z" fill="none" stroke="#e8833a" stroke-width="3"
-        stroke-linecap="round" stroke-linejoin="round"/>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2b1a14"/><stop offset="1" stop-color="#7a2f16"/>
+    </linearGradient>
+    <radialGradient id="vig" cx="0.5" cy="0.42" r="0.75">
+      <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.35"/>
+    </radialGradient>
+  </defs>
+  <rect width="128" height="128" fill="url(#bg)"/>
+  <path d="M0 128V96q32-10 64 0t64 0V128z" fill="#3b2317"/><path d="M64 26c10 18 22 24 22 44 0 18-12 32-22 32s-22-14-22-32c0-20 12-26 22-44z" fill="#ff9f1c"/><path d="M64 52c5 10 12 14 12 24 0 10-6 18-12 18s-12-8-12-18c0-10 7-14 12-24z" fill="#ffe066"/><path d="M34 104h60" fill="none" stroke="#5b3a24" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect width="128" height="128" fill="url(#vig)"/>
 </svg>

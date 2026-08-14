@@ -1,6 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img">
   <title>farming</title>
-  <circle cx="32" cy="32" r="30" fill="#efeae0" stroke="#d8d3c7" stroke-width="1.5"/>
-  <path d="M20 54V22 M20 22c0-6 4-10 8-10 M20 30c6 0 10-4 10-10 M44 54V22 M44 22c0-6-4-10-8-10 M44 30c-6 0-10-4-10-10 M12 54h40" fill="none" stroke="#8bc34a" stroke-width="3"
-        stroke-linecap="round" stroke-linejoin="round"/>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3b5a1e"/><stop offset="1" stop-color="#8ab547"/>
+    </linearGradient>
+    <radialGradient id="vig" cx="0.5" cy="0.42" r="0.75">
+      <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.35"/>
+    </radialGradient>
+  </defs>
+  <rect width="128" height="128" fill="url(#bg)"/>
+  <path d="M0 128V92q32-6 64 0t64 0V128z" fill="#4d7024"/><circle cx="102" cy="26" r="24.7" fill="#ffe9a8" opacity=".35"/><circle cx="102" cy="26" r="13" fill="#ffd166"/><path d="M40 100V52" fill="none" stroke="#e9c46a" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M40 66q-14-6-14-18 14 0 14 12" fill="none" stroke="#9bc53d" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path d="M64 100V44" fill="none" stroke="#e9c46a" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M64 58q14-6 14-18-14 0-14 12" fill="none" stroke="#9bc53d" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path d="M88 100V56" fill="none" stroke="#e9c46a" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M88 70q-12-6-12-16 12 0 12 10" fill="none" stroke="#9bc53d" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect width="128" height="128" fill="url(#vig)"/>
 </svg>

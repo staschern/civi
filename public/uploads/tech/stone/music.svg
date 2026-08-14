@@ -1,6 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img">
   <title>music</title>
-  <circle cx="32" cy="32" r="30" fill="#efeae0" stroke="#d8d3c7" stroke-width="1.5"/>
-  <path d="M24 46a6 5 0 1 0 .1 0z M48 40a6 5 0 1 0 .1 0z M30 46V16l24-6v30 M30 26l24-6" fill="none" stroke="#ec407a" stroke-width="3"
-        stroke-linecap="round" stroke-linejoin="round"/>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a1e3a"/><stop offset="1" stop-color="#9a4a8a"/>
+    </linearGradient>
+    <radialGradient id="vig" cx="0.5" cy="0.42" r="0.75">
+      <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.35"/>
+    </radialGradient>
+  </defs>
+  <rect width="128" height="128" fill="url(#bg)"/>
+  <path d="M0 128V96q32-10 64 0t64 0V128z" fill="#4a2848"/><circle cx="42" cy="92" r="13" fill="#ffd166"/><circle cx="90" cy="82" r="13" fill="#ffd166"/><path d="M55 92V30l48-12v64" fill="none" stroke="#f2e8d5" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><path d="M55 48l48-12" fill="none" stroke="#f2e8d5" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect width="128" height="128" fill="url(#vig)"/>
 </svg>
