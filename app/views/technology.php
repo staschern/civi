@@ -6,7 +6,17 @@ $selectedPrereqs = array_flip($prereqs);
 ?>
 <div class="page-head">
   <h1><?= $isNew ? 'Новая технология' : h($tech['name']) ?></h1>
-  <a class="button" href="<?= h(url('technologies')) ?>">К списку</a>
+  <div class="row">
+    <?php if (!$isNew && !empty($fromVersion) && !empty($boardLinks)): ?>
+      <a class="button primary"
+         href="<?= h(url('version', ['id' => $fromVersion, 'focus' => $boardLinks['node_id']])) ?>">
+        ← В дерево, к этой карточке
+      </a>
+    <?php elseif (!empty($fromVersion)): ?>
+      <a class="button" href="<?= h(url('version', ['id' => $fromVersion])) ?>">← В дерево</a>
+    <?php endif; ?>
+    <a class="button" href="<?= h(url('technologies')) ?>">К списку</a>
+  </div>
 </div>
 
 <div class="two-col">
@@ -125,6 +135,60 @@ $selectedPrereqs = array_flip($prereqs);
   </section>
 
   <section class="side">
+    <?php if (!$isNew && !empty($boardLinks)): ?>
+      <h2>Связи на доске</h2>
+      <p class="hint">Столбец <?= (int) $boardLinks['column'] + 1 ?>.
+        Галочки меняют связи сразу: карточка встаёт в столбец за самой поздней
+        из своих основ, доска пересобирается.</p>
+
+      <form method="post" action="<?= h(url('link-bulk')) ?>" class="stack tight">
+        <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
+        <input type="hidden" name="version_id" value="<?= (int) $fromVersion ?>">
+        <input type="hidden" name="node_id" value="<?= (int) $boardLinks['node_id'] ?>">
+        <input type="hidden" name="technology_id" value="<?= (int) $tech['id'] ?>">
+
+        <fieldset>
+          <legend>Сначала нужно открыть <span class="hint">столбцы левее</span></legend>
+          <?php if ($boardLinks['before'] === []): ?>
+            <p class="hint">Левее ничего нет — это первый столбец.</p>
+          <?php else: ?>
+            <div class="checklist">
+              <?php foreach ($boardLinks['before'] as $row): ?>
+                <label class="check">
+                  <input type="checkbox" name="incoming[]" value="<?= (int) $row['id'] ?>"
+                         <?= isset($boardLinks['incoming'][(int) $row['id']]) ? 'checked' : '' ?>>
+                  <span class="swatch" style="background: <?= h($row['color']) ?>"></span>
+                  <?= h($row['name']) ?>
+                  <span class="hint">ст. <?= (int) $row['global_column'] + 1 ?></span>
+                </label>
+              <?php endforeach; ?>
+            </div>
+          <?php endif; ?>
+        </fieldset>
+
+        <fieldset>
+          <legend>Открывает <span class="hint">столбцы правее</span></legend>
+          <?php if ($boardLinks['after'] === []): ?>
+            <p class="hint">Правее ничего нет — это последний столбец.</p>
+          <?php else: ?>
+            <div class="checklist">
+              <?php foreach ($boardLinks['after'] as $row): ?>
+                <label class="check">
+                  <input type="checkbox" name="outgoing[]" value="<?= (int) $row['id'] ?>"
+                         <?= isset($boardLinks['outgoing'][(int) $row['id']]) ? 'checked' : '' ?>>
+                  <span class="swatch" style="background: <?= h($row['color']) ?>"></span>
+                  <?= h($row['name']) ?>
+                  <span class="hint">ст. <?= (int) $row['global_column'] + 1 ?></span>
+                </label>
+              <?php endforeach; ?>
+            </div>
+          <?php endif; ?>
+        </fieldset>
+
+        <button type="submit" class="primary">Сохранить связи</button>
+      </form>
+    <?php endif; ?>
+
     <h2>Что добавляет в игру</h2>
     <?php if ($isNew): ?>
       <p class="hint">Сохраните технологию — после этого можно будет добавлять эффекты.</p>

@@ -418,6 +418,361 @@ final class VersionRepository
     }
 
     /**
+     * Границы сквозных столбцов каждой эпохи для одного дерева.
+     *
+     * @return array [version_era_id => ['first' => int, 'last' => int]]
+     */
+    public function eraColumnRanges(int $versionId, int $treeId): array
+    {
+        $rows = $this->db->all(
+            'SELECT tve.id, tve.position, COALESCE(l.lanes, ?) AS lanes
+               FROM tree_version_eras tve
+               LEFT JOIN tree_version_era_lanes l ON l.version_era_id = tve.id AND l.tree_id = ?
+              WHERE tve.version_id = ? ORDER BY tve.position, tve.id',
+            [TreeGenerator::LANE_MIN, $treeId, $versionId]
+        );
+
+        $ranges = [];
+        $offset = 0;
+        foreach ($rows as $row) {
+            $lanes = max(1, (int) $row['lanes']);
+            $ranges[(int) $row['id']] = ['first' => $offset, 'last' => $offset + $lanes - 1];
+            $offset += $lanes;
+        }
+
+        return $ranges;
+    }
+
+    /**
+     * Переставляет карточки по столбцам согласно связям.
+     *
+     * Карточка встаёт в столбец сразу за самой поздней из своих основ;
+     * если основ нет — в первый столбец своей эпохи. Эпоха при этом
+     * не меняется, поэтому результат зажимается в границы её столбцов.
+     * Перестановка идёт волнами: сдвиг одной карточки может потянуть
+     * за собой зависящие от неё.
+     *
+     * @return int сколько карточек переехало
+     */
+    public function reposition(int $versionId): int
+    {
+        $movedTotal = 0;
+
+        foreach ($this->db->all('SELECT id FROM trees ORDER BY position, id') as $tree) {
+            $treeId = (int) $tree['id'];
+            $ranges = $this->eraColumnRanges($versionId, $treeId);
+
+            $nodes = [];
+            foreach ($this->db->all(
+                'SELECT id, version_era_id, lane, row_index, global_column
+                   FROM tree_version_nodes WHERE version_id = ? AND tree_id = ?',
+                [$versionId, $treeId]
+            ) as $row) {
+                $nodes[(int) $row['id']] = [
+                    'era' => (int) $row['version_era_id'],
+                    'col' => (int) $row['global_column'],
+                    'lane' => (int) $row['lane'],
+                    'row' => (int) $row['row_index'],
+                ];
+            }
+            if ($nodes === []) {
+                continue;
+            }
+
+            $incoming = [];
+            foreach ($this->db->all(
+                'SELECT l.from_node_id, l.to_node_id
+                   FROM tree_version_links l
+                   JOIN tree_version_nodes n ON n.id = l.to_node_id
+                  WHERE l.version_id = ? AND n.tree_id = ?',
+                [$versionId, $treeId]
+            ) as $row) {
+                $incoming[(int) $row['to_node_id']][] = (int) $row['from_node_id'];
+            }
+
+            // волны: 40 проходов с запасом, обычно хватает двух-трёх
+            for ($pass = 0; $pass < 40; $pass++) {
+                $order = array_keys($nodes);
+                usort($order, static function ($a, $b) use ($nodes) {
+                    return $nodes[$a]['col'] <=> $nodes[$b]['col'];
+                });
+
+                $changed = false;
+                foreach ($order as $id) {
+                    $range = $ranges[$nodes[$id]['era']] ?? null;
+                    if ($range === null) {
+                        continue;
+                    }
+                    $desired = $range['first'];
+                    foreach ($incoming[$id] ?? [] as $srcId) {
+                        if (isset($nodes[$srcId])) {
+                            $desired = max($desired, $nodes[$srcId]['col'] + 1);
+                        }
+                    }
+                    $desired = min(max($desired, $range['first']), $range['last']);
+                    if ($desired !== $nodes[$id]['col']) {
+                        $nodes[$id]['col'] = $desired;
+                        $nodes[$id]['lane'] = $desired - $range['first'];
+                        $changed = true;
+                    }
+                }
+                if (!$changed) {
+                    break;
+                }
+            }
+
+            // перенумеровываем строки внутри каждого столбца
+            $byColumn = [];
+            foreach ($nodes as $id => $n) {
+                $byColumn[$n['era'] . ':' . $n['lane']][] = $id;
+            }
+            foreach ($byColumn as $ids) {
+                usort($ids, static function ($a, $b) use ($nodes) {
+                    return $nodes[$a]['row'] <=> $nodes[$b]['row'];
+                });
+                foreach ($ids as $i => $id) {
+                    $nodes[$id]['row'] = $i;
+                }
+            }
+
+            foreach ($nodes as $id => $n) {
+                $movedTotal += (int) $this->db->run(
+                    'UPDATE tree_version_nodes SET lane = ?, row_index = ?, global_column = ?
+                      WHERE id = ? AND (lane <> ? OR row_index <> ? OR global_column <> ?)',
+                    [$n['lane'], $n['row'], $n['col'], $id, $n['lane'], $n['row'], $n['col']]
+                )->rowCount();
+            }
+        }
+
+        return $movedTotal;
+    }
+
+    /**
+     * Переключает связь между карточками: была — снимаем, не было — ставим.
+     * После этого доска перекладывается по правилу столбцов.
+     *
+     * @return array состояние доски для перерисовки на клиенте
+     */
+    public function toggleLink(int $versionId, int $fromNodeId, int $toNodeId): array
+    {
+        if ($fromNodeId === $toNodeId) {
+            throw new UserError('Технология не может зависеть сама от себя');
+        }
+
+        return $this->db->transaction(function (Db $db) use ($versionId, $fromNodeId, $toNodeId) {
+            $from = $this->nodeOnBoard($versionId, $fromNodeId);
+            $to = $this->nodeOnBoard($versionId, $toNodeId);
+            if ($from === null || $to === null) {
+                throw new UserError('Карточка не найдена на этой доске');
+            }
+            if ($from['tree_id'] !== $to['tree_id']) {
+                throw new UserError('Связь возможна только внутри одного дерева');
+            }
+
+            $exists = (int) $db->value(
+                'SELECT COUNT(*) FROM tree_version_links
+                  WHERE version_id = ? AND from_node_id = ? AND to_node_id = ?',
+                [$versionId, $fromNodeId, $toNodeId]
+            ) > 0;
+
+            if ($exists) {
+                $db->run(
+                    'DELETE FROM tree_version_links
+                      WHERE version_id = ? AND from_node_id = ? AND to_node_id = ?',
+                    [$versionId, $fromNodeId, $toNodeId]
+                );
+            } else {
+                // обратная связь того же ребра — это цикл
+                $back = (int) $db->value(
+                    'SELECT COUNT(*) FROM tree_version_links
+                      WHERE version_id = ? AND from_node_id = ? AND to_node_id = ?',
+                    [$versionId, $toNodeId, $fromNodeId]
+                );
+                if ($back > 0) {
+                    throw new UserError('Обратная связь уже есть — получилось бы кольцо');
+                }
+
+                // цель обязана уехать правее основы, но остаться в своей эпохе
+                $ranges = $this->eraColumnRanges($versionId, (int) $to['tree_id']);
+                $range = $ranges[(int) $to['version_era_id']] ?? null;
+                if ($range !== null && (int) $from['global_column'] + 1 > $range['last']) {
+                    throw new UserError(
+                        'Так нельзя: «' . $to['name'] . '» пришлось бы вынести за пределы своей эпохи'
+                    );
+                }
+
+                $db->run(
+                    'INSERT INTO tree_version_links (version_id, from_node_id, to_node_id, origin)
+                     VALUES (?, ?, ?, \'manual\')',
+                    [$versionId, $fromNodeId, $toNodeId]
+                );
+            }
+
+            $db->run('UPDATE tree_versions SET status = \'edited\' WHERE id = ?', [$versionId]);
+            $this->reposition($versionId);
+
+            return $this->boardState($versionId);
+        });
+    }
+
+    /** Карточка версии вместе с названием технологии. */
+    public function nodeOnBoard(int $versionId, int $nodeId): ?array
+    {
+        return $this->db->one(
+            'SELECT n.*, t.name FROM tree_version_nodes n
+               JOIN technologies t ON t.id = n.technology_id
+              WHERE n.version_id = ? AND n.id = ?',
+            [$versionId, $nodeId]
+        );
+    }
+
+    /**
+     * Связи технологии на конкретной доске: что открывает её и что
+     * открывается благодаря ей. Плюс кандидаты для правки списков.
+     */
+    public function technologyLinks(int $versionId, int $technologyId): ?array
+    {
+        $node = $this->db->one(
+            'SELECT n.id, n.tree_id, n.global_column, n.version_era_id
+               FROM tree_version_nodes n WHERE n.version_id = ? AND n.technology_id = ?',
+            [$versionId, $technologyId]
+        );
+        if ($node === null) {
+            return null;   // технологии нет на этой доске
+        }
+
+        $all = $this->db->all(
+            'SELECT n.id, n.global_column, t.name, b.color
+               FROM tree_version_nodes n
+               JOIN technologies t ON t.id = n.technology_id
+               JOIN branches b     ON b.id = t.branch_id
+              WHERE n.version_id = ? AND n.tree_id = ? AND n.id <> ?
+              ORDER BY n.global_column, t.name',
+            [$versionId, $node['tree_id'], $node['id']]
+        );
+
+        $incoming = array_map('intval', $this->db->run(
+            'SELECT from_node_id FROM tree_version_links WHERE version_id = ? AND to_node_id = ?',
+            [$versionId, $node['id']]
+        )->fetchAll(\PDO::FETCH_COLUMN));
+
+        $outgoing = array_map('intval', $this->db->run(
+            'SELECT to_node_id FROM tree_version_links WHERE version_id = ? AND from_node_id = ?',
+            [$versionId, $node['id']]
+        )->fetchAll(\PDO::FETCH_COLUMN));
+
+        // Показываем не всю доску, а ближние столбцы: списком на три сотни
+        // галочек пользоваться невозможно. Уже связанные попадают в список
+        // всегда, даже если лежат далеко.
+        $reach = 3;
+        $inc = array_flip($incoming);
+        $out = array_flip($outgoing);
+        $before = [];
+        $after = [];
+        foreach ($all as $row) {
+            $rowCol = (int) $row['global_column'];
+            $id = (int) $row['id'];
+            if ($rowCol < $col && ($rowCol >= $col - $reach || isset($inc[$id]))) {
+                $before[] = $row;
+            } elseif ($rowCol > $col && ($rowCol <= $col + $reach || isset($out[$id]))) {
+                $after[] = $row;
+            }
+        }
+
+        return [
+            'node_id'  => (int) $node['id'],
+            'column'   => $col,
+            'incoming' => array_flip($incoming),
+            'outgoing' => array_flip($outgoing),
+            'before'   => $before,
+            'after'    => $after,
+        ];
+    }
+
+    /**
+     * Пересобирает связи одной карточки по спискам со страницы технологии:
+     * что её открывает и что открывает она. Всё лишнее снимается.
+     */
+    public function saveNodeLinks(int $versionId, int $nodeId, array $incoming, array $outgoing): void
+    {
+        $this->db->transaction(function (Db $db) use ($versionId, $nodeId, $incoming, $outgoing) {
+            $node = $this->nodeOnBoard($versionId, $nodeId);
+            if ($node === null) {
+                throw new UserError('Карточка не найдена на этой доске');
+            }
+
+            $valid = [];
+            foreach ($db->all(
+                'SELECT id, global_column FROM tree_version_nodes
+                  WHERE version_id = ? AND tree_id = ?',
+                [$versionId, $node['tree_id']]
+            ) as $row) {
+                $valid[(int) $row['id']] = (int) $row['global_column'];
+            }
+            $col = (int) $node['global_column'];
+
+            $db->run('DELETE FROM tree_version_links WHERE version_id = ? AND to_node_id = ?',
+                [$versionId, $nodeId]);
+            $db->run('DELETE FROM tree_version_links WHERE version_id = ? AND from_node_id = ?',
+                [$versionId, $nodeId]);
+
+            foreach (array_unique(array_map('intval', $incoming)) as $srcId) {
+                if ($srcId !== $nodeId && isset($valid[$srcId]) && $valid[$srcId] < $col) {
+                    $db->run(
+                        'INSERT IGNORE INTO tree_version_links
+                            (version_id, from_node_id, to_node_id, origin) VALUES (?, ?, ?, \'manual\')',
+                        [$versionId, $srcId, $nodeId]
+                    );
+                }
+            }
+            foreach (array_unique(array_map('intval', $outgoing)) as $dstId) {
+                if ($dstId !== $nodeId && isset($valid[$dstId]) && $valid[$dstId] > $col) {
+                    $db->run(
+                        'INSERT IGNORE INTO tree_version_links
+                            (version_id, from_node_id, to_node_id, origin) VALUES (?, ?, ?, \'manual\')',
+                        [$versionId, $nodeId, $dstId]
+                    );
+                }
+            }
+
+            $db->run('UPDATE tree_versions SET status = \'edited\' WHERE id = ?', [$versionId]);
+            $this->reposition($versionId);
+        });
+    }
+
+    /** Позиции карточек и связи — чтобы клиент перерисовал доску без перезагрузки. */
+    public function boardState(int $versionId): array
+    {
+        $nodes = [];
+        foreach ($this->db->all(
+            'SELECT id, tree_id, version_era_id, lane, row_index, global_column
+               FROM tree_version_nodes WHERE version_id = ?',
+            [$versionId]
+        ) as $row) {
+            $nodes[] = [
+                'id' => (int) $row['id'], 'tree' => (int) $row['tree_id'],
+                'era_id' => (int) $row['version_era_id'], 'lane' => (int) $row['lane'],
+                'row' => (int) $row['row_index'], 'col' => (int) $row['global_column'],
+            ];
+        }
+
+        $links = [];
+        foreach ($this->db->all(
+            'SELECT l.from_node_id, l.to_node_id, l.origin, n.tree_id
+               FROM tree_version_links l JOIN tree_version_nodes n ON n.id = l.from_node_id
+              WHERE l.version_id = ?',
+            [$versionId]
+        ) as $row) {
+            $links[] = [
+                'from' => (int) $row['from_node_id'], 'to' => (int) $row['to_node_id'],
+                'origin' => $row['origin'], 'tree' => (int) $row['tree_id'],
+            ];
+        }
+
+        return ['nodes' => $nodes, 'links' => $links, 'problems' => $this->validate($versionId)];
+    }
+
+    /**
      * Проверка правила столбцов на сохранённой версии: возвращает список
      * нарушений. Пустой список — доска корректна.
      */

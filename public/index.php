@@ -47,6 +47,7 @@ if (!$auth->isLoggedIn()) {
 // токеном: так изменение нельзя вызвать простой ссылкой или картинкой.
 $mutating = [
     'version-generate', 'version-rename', 'version-delete', 'version-add-tech', 'version-remove-node',
+    'link-toggle', 'link-bulk',
     'category-save', 'category-delete', 'technology-save', 'technology-delete',
     'effect-save', 'effect-delete', 'effect-type-save', 'effect-type-delete',
 ];
@@ -108,12 +109,48 @@ try {
                 http_response_code(404);
                 exit('Версия не найдена');
             }
+            // запоминаем доску: со страницы технологии можно будет вернуться
+            $_SESSION['last_version'] = $id;
             view('version', [
                 'data'      => $data,
                 'problems'  => $versions->validate($id),
                 'available' => $catalog->technologies([]),
+                'focus'     => (int) ($_GET['focus'] ?? 0),
                 'csrf'      => $csrf,
                 'page'      => 'versions',
+            ]);
+            break;
+
+        // Переключение связи прямо на доске: была — снимаем, не было — ставим.
+        // Отвечаем JSON, чтобы клиент перерисовал доску без перезагрузки.
+        case 'link-toggle':
+            header('Content-Type: application/json; charset=utf-8');
+            try {
+                $state = $versions->toggleLink(
+                    (int) $_POST['version_id'],
+                    (int) $_POST['from_node_id'],
+                    (int) $_POST['to_node_id']
+                );
+                echo json_encode(['ok' => true] + $state, JSON_UNESCAPED_UNICODE);
+            } catch (Civi\UserError $e) {
+                echo json_encode(['ok' => false, 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+            }
+            exit;
+
+        // Списки «сначала открыть» и «открывает» со страницы технологии.
+        case 'link-bulk':
+            $versionId = (int) $_POST['version_id'];
+            $versions->saveNodeLinks(
+                $versionId,
+                (int) $_POST['node_id'],
+                (array) ($_POST['incoming'] ?? []),
+                (array) ($_POST['outgoing'] ?? [])
+            );
+            flash('Связи сохранены, доска пересобрана');
+            redirect('technology', [
+                'id' => (int) $_POST['technology_id'],
+                'from' => $versionId,
+                'node' => (int) $_POST['node_id'],
             ]);
             break;
 
@@ -193,8 +230,18 @@ try {
                 http_response_code(404);
                 exit('Технология не найдена');
             }
+            // контекст доски: с неё пришли — на неё и вернёмся
+            $fromVersion = (int) ($_GET['from'] ?? $_SESSION['last_version'] ?? 0);
+            $fromNode = (int) ($_GET['node'] ?? 0);
+            $boardLinks = ($tech !== null && $fromVersion > 0)
+                ? $versions->technologyLinks($fromVersion, (int) $tech['id'])
+                : null;
+
             view('technology', [
                 'tech'        => $tech,
+                'fromVersion' => $fromVersion,
+                'fromNode'    => $fromNode,
+                'boardLinks'  => $boardLinks,
                 'trees'       => $catalog->trees(),
                 'categories'  => $catalog->categories(),
                 'eras'        => $catalog->eras(),

@@ -64,15 +64,22 @@ foreach ($data['links'] as $l) {
   </div>
 </div>
 
-<?php if ($problems !== []): ?>
-  <div class="flash error">
+<div id="board-problems" class="flash <?= $problems === [] ? 'ok' : 'error' ?>">
+  <?php if ($problems !== []): ?>
     <strong>Правило столбцов нарушено:</strong>
     <ul><?php foreach (array_slice($problems, 0, 10) as $p): ?><li><?= h($p) ?></li><?php endforeach; ?></ul>
     <?php if (count($problems) > 10): ?><div>…и ещё <?= count($problems) - 10 ?></div><?php endif; ?>
-  </div>
-<?php else: ?>
-  <div class="flash ok">Правило столбцов соблюдено на всей доске.</div>
-<?php endif; ?>
+  <?php else: ?>
+    Правило столбцов соблюдено на всей доске.
+  <?php endif; ?>
+</div>
+
+<p class="hint">Наведите на карточку — подсветятся связи на три шага в обе стороны.
+  Кнопки «‹» и «›» по бокам карточки включают правку связей: слева — от кого технология
+  зависит, справа — кому открывает дорогу. После правки карточка сама встаёт в столбец
+  за самой поздней из своих основ, и это сразу сохраняется.</p>
+
+<div id="edit-banner"></div>
 
 <section class="panel">
   <h2>Добавить технологию в эту версию</h2>
@@ -111,7 +118,11 @@ foreach ($data['links'] as $l) {
   </form>
 </section>
 
-<div id="board" data-board="<?= h(json_encode($board, JSON_UNESCAPED_UNICODE)) ?>"></div>
+<div id="board"
+     data-version="<?= (int) $version['id'] ?>"
+     data-csrf="<?= h($csrf) ?>"
+     data-focus="<?= (int) ($focus ?? 0) ?>"
+     data-board="<?= h(json_encode($board, JSON_UNESCAPED_UNICODE)) ?>"></div>
 
 <form method="post" action="<?= h(url('version-remove-node')) ?>" id="remove-form" style="display:none">
   <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
