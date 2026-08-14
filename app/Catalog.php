@@ -165,6 +165,7 @@ final class Catalog
             (int) $data['branch_id'],
             (int) $data['default_era_id'],
             empty($data['is_standard']) ? 0 : 1,
+            ($data['base_cost'] ?? '') === '' ? null : max(0, (int) $data['base_cost']),
             $this->nullable($data['image_path'] ?? null),
             $this->nullable($data['description'] ?? null),
             $this->nullable($data['historical_note'] ?? null),
@@ -177,14 +178,14 @@ final class Catalog
             $id = $this->db->insert(
                 'INSERT INTO technologies
                     (tree_id, code, name, branch_id, default_era_id, is_standard,
-                     image_path, description, historical_note)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                     base_cost, image_path, description, historical_note)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 array_merge([$treeId, $code], $fields)
             );
         } else {
             $this->db->run(
                 'UPDATE technologies SET name = ?, branch_id = ?, default_era_id = ?, is_standard = ?,
-                        image_path = ?, description = ?, historical_note = ?
+                        base_cost = ?, image_path = ?, description = ?, historical_note = ?
                   WHERE id = ?',
                 array_merge($fields, [$id])
             );

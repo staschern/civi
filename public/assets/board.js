@@ -13,6 +13,13 @@
 
   var board = JSON.parse(mount.dataset.board);
 
+  /* Значок эффекта: по одному на каждый эффект технологии. */
+  var EFFECT_ICON = {
+    resource: '🪨', unit: '⚔️', building: '🏛️', building_level: '⬆️',
+    concept: '💡', card: '🃏', resource_rate: '⚡', bonus: '✨',
+  };
+
+
   board.trees.forEach(function (tree) {
     var section = document.createElement('section');
     section.className = 'tree-board';
@@ -84,17 +91,33 @@
     el.className = 'node' + (n.source === 'manual' ? ' manual' : '');
     el.dataset.id = n.id;
     el.style.setProperty('--branch', n.color);
+
+    var effects = (n.effects || []).map(function (e) {
+      return '<span class="eff" title="' + escapeHtml(e.type + ': ' + e.title) + '">' +
+        (EFFECT_ICON[e.code] || '•') + '</span>';
+    }).join('');
+
+    // вся карточка — одна ссылка, поэтому открыть технологию можно
+    // кликом в любое место, а не только по названию
     el.innerHTML =
-      '<span class="branch-label">' + escapeHtml(n.branch) + '</span>' +
-      '<div class="node-title">' +
-        (n.image ? '<img src="' + escapeHtml(n.image) + '" alt="">' : '') +
-        '<a class="edit" href="index.php?p=technology&id=' + n.tech_id + '">' + escapeHtml(n.name) + '</a>' +
-        (n.source === 'manual' ? '<span class="tag-manual">вручную</span>' : '') +
-      '</div>' +
-      '<span class="cost" title="Стоимость: растёт от столбца к столбцу">' + n.cost + '</span>' +
+      '<a class="node-link" href="index.php?p=technology&id=' + n.tech_id + '">' +
+        '<span class="node-art">' +
+          (n.image ? '<img src="' + escapeHtml(n.image) + '" alt="">' : '<span class="node-art-empty"></span>') +
+          '<span class="node-cost" title="Стоимость технологии">' + n.cost + '</span>' +
+        '</span>' +
+        '<span class="node-body">' +
+          '<span class="node-head">' +
+            '<span class="node-dot" title="' + escapeHtml(n.branch) + '"></span>' +
+            '<span class="node-name">' + escapeHtml(n.name) + '</span>' +
+            (n.source === 'manual' ? '<span class="tag-manual">вручную</span>' : '') +
+          '</span>' +
+          '<span class="node-effects">' + effects + '</span>' +
+        '</span>' +
+      '</a>' +
       '<button class="drop" title="Убрать с доски этой версии">×</button>';
 
-    el.querySelector('.drop').addEventListener('click', function () {
+    el.querySelector('.drop').addEventListener('click', function (ev) {
+      ev.preventDefault();
       if (!confirm('Убрать «' + n.name + '» с доски этой версии?')) return;
       document.getElementById('remove-node-id').value = n.id;
       document.getElementById('remove-form').submit();

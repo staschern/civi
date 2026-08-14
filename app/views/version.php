@@ -21,8 +21,9 @@ foreach ($data['trees'] as $tree) {
             'lane' => (int) $n['lane'], 'row' => (int) $n['row_index'],
             'col' => (int) $n['global_column'], 'name' => $n['name'],
             'branch' => $n['branch_name'], 'color' => $n['branch_color'],
-            'source' => $n['source'], 'image' => $n['image_path'],
-            'cost' => (int) $n['cost'],
+            'source' => $n['source'], 'image' => image_url($n['image_path']),
+            'cost' => (int) $n['shown_cost'],
+            'effects' => $data['effects'][(int) $n['technology_id']] ?? [],
             'tech_id' => (int) $n['technology_id'],
         ];
     }

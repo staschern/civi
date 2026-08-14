@@ -54,6 +54,15 @@ $selectedPrereqs = array_flip($prereqs);
         </select>
       </label>
 
+      <label>Стоимость
+        <input type="number" name="base_cost" min="0" step="1"
+               value="<?= $tech && $tech['base_cost'] !== null ? (int) $tech['base_cost'] : '' ?>"
+               placeholder="считает генератор">
+        <span class="hint">Пусто — стоимость рассчитывается по столбцу: каждый следующий
+          примерно в полтора раза дороже предыдущего. Заданное здесь число сильнее
+          расчётного и показывается на всех досках.</span>
+      </label>
+
       <label class="check">
         <input type="checkbox" name="is_standard" value="1" <?= ($isNew || $tech['is_standard']) ? 'checked' : '' ?>>
         входит в стандартный набор
@@ -62,7 +71,7 @@ $selectedPrereqs = array_flip($prereqs);
 
       <label>Картинка
         <?php if (!$isNew && $tech['image_path']): ?>
-          <div class="preview"><img src="<?= h($tech['image_path']) ?>" alt=""></div>
+          <div class="preview"><img src="<?= h(image_url($tech['image_path'])) ?>" alt=""></div>
         <?php endif; ?>
         <input type="file" name="image" accept="image/png,image/jpeg,image/gif,image/webp">
         <span class="hint">или путь вручную</span>

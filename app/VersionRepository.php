@@ -157,10 +157,17 @@ final class VersionRepository
             $nodeIdByTech = [];
             foreach ($trees as $treeIndex => $tree) {
                 $techs = $db->all(
-                    'SELECT id, default_era_id AS era_id, branch_id FROM technologies
+                    'SELECT id, default_era_id AS era_id, branch_id, base_cost FROM technologies
                       WHERE is_standard = 1 AND tree_id = ? ORDER BY id',
                     [$tree['id']]
                 );
+                // проставленная руками стоимость сильнее расчётной
+                $baseCost = [];
+                foreach ($techs as $t) {
+                    if ($t['base_cost'] !== null) {
+                        $baseCost[(int) $t['id']] = (int) $t['base_cost'];
+                    }
+                }
                 if ($techs === []) {
                     continue;
                 }
@@ -195,7 +202,7 @@ final class VersionRepository
                         [
                             $versionId, $tree['id'], $techId, $versionEraId[$n['era_id']],
                             $n['lane'], $n['row'], $n['global_column'],
-                            self::costFor((int) $n['global_column'], $costRng),
+                            $baseCost[$techId] ?? self::costFor((int) $n['global_column'], $costRng),
                             $n['relaxed'] ? 1 : 0,
                         ]
                     );
@@ -251,6 +258,7 @@ final class VersionRepository
             'SELECT n.id, n.tree_id, n.technology_id, n.version_era_id, n.lane, n.row_index,
                     n.global_column, n.cost, n.source, n.is_relaxed,
                     t.code, t.name, t.image_path, t.description, t.historical_note,
+                    COALESCE(t.base_cost, n.cost) AS shown_cost,
                     b.id AS branch_id, b.name AS branch_name, b.color AS branch_color
                FROM tree_version_nodes n
                JOIN technologies t ON t.id = n.technology_id
@@ -265,9 +273,26 @@ final class VersionRepository
             [$versionId]
         );
 
+        // эффекты технологий этой доски — по одному значку на эффект
+        $effects = [];
+        foreach ($this->db->all(
+            'SELECT e.technology_id, e.title, et.code, et.name
+               FROM technology_effects e
+               JOIN effect_types et ON et.id = e.effect_type_id
+              WHERE e.technology_id IN (
+                    SELECT technology_id FROM tree_version_nodes WHERE version_id = ?)
+              ORDER BY e.position, e.id',
+            [$versionId]
+        ) as $row) {
+            $effects[(int) $row['technology_id']][] = [
+                'code' => $row['code'], 'title' => $row['title'], 'type' => $row['name'],
+            ];
+        }
+
         $trees = $this->db->all('SELECT id, code, name, points_name, boost_name FROM trees ORDER BY position, id');
 
         return [
+            'effects' => $effects,
             'version' => $version,
             'trees'   => $trees,
             'eras'    => $eras,

@@ -315,5 +315,7 @@ function upload_image(?array $file, array $config): ?string
         throw new \Civi\UserError('Не удалось сохранить картинку в ' . $dir);
     }
 
-    return rtrim($config['uploads_url'], '/') . '/' . $name;
+    // путь относительно приложения: так он не сломается при переносе
+    // админки в подкаталог или обратно в корень сайта
+    return 'uploads/tech/' . $name;
 }

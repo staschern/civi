@@ -62,7 +62,7 @@ $f = $filter;
     <tr>
       <td class="thumb">
         <?php if ($row['image_path']): ?>
-          <img src="<?= h($row['image_path']) ?>" alt="">
+          <img src="<?= h(image_url($row['image_path'])) ?>" alt="">
         <?php endif; ?>
       </td>
       <td>
@@ -72,11 +72,12 @@ $f = $filter;
       <td><span class="swatch" style="background: <?= h($row['branch_color']) ?>"></span><?= h($row['branch_name']) ?></td>
       <td><?= h($row['era_name']) ?></td>
       <td><?= $row['is_standard'] ? 'стандартный' : '<span class="tag">вне набора</span>' ?></td>
+      <td><?= $row['base_cost'] !== null ? (int) $row['base_cost'] : '<span class="hint">по столбцу</span>' ?></td>
       <td><?= (int) $row['effect_count'] ?></td>
     </tr>
   <?php endforeach; ?>
   <?php if ($list === []): ?>
-    <tr><td colspan="6" class="hint">Ничего не найдено.</td></tr>
+    <tr><td colspan="7" class="hint">Ничего не найдено.</td></tr>
   <?php endif; ?>
   </tbody>
 </table>

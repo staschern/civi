@@ -63,6 +63,27 @@ if (empty($config['uploads_url'])) {
     $config['uploads_url'] = base_url() . '/uploads/tech';
 }
 
+/**
+ * Адрес картинки технологии.
+ *
+ * В каталоге пути хранятся относительно приложения («uploads/tech/…»),
+ * чтобы одна и та же база работала и в корне сайта, и в подкаталоге:
+ * абсолютный «/uploads/…» под адресом /civi/ давал бы 404. Пути,
+ * начинающиеся со слэша или со схемы, отдаём как есть — их задал человек.
+ */
+function image_url(?string $path): string
+{
+    $path = trim((string) $path);
+    if ($path === '') {
+        return '';
+    }
+    if (preg_match('~^(https?:)?//~i', $path) || $path[0] === '/') {
+        return $path;
+    }
+
+    return base_url() . '/' . ltrim($path, '/');
+}
+
 /** Экранирование для вывода в HTML. */
 function h($value): string
 {
