@@ -18,8 +18,8 @@ svg.edges{position:absolute;top:0;left:0;pointer-events:none;overflow:visible}
 
 .era-col{
   --lanes:2;
-  --lane-w:344px;      /* карточка широкая: помещается картинка и название */
-  --lane-gap:64px;     /* столбцы разведены, связи между ними читаются */
+  --lane-w:380px;     /* как в образце: карточка ~375 px шириной */
+  --lane-gap:72px;    /* столбцы разведены, три помещаются на экран */
   position:relative;
   width:calc(var(--lanes) * var(--lane-w) + (var(--lanes) - 1) * var(--lane-gap) + 24px);
   flex:0 0 auto;border-right:1px dashed var(--border);padding:0 12px 22px;
@@ -38,69 +38,95 @@ svg.edges{position:absolute;top:0;left:0;pointer-events:none;overflow:visible}
   display:grid;grid-template-columns:repeat(var(--lanes), var(--lane-w));
   gap:var(--lane-gap);align-items:stretch;position:relative;z-index:2;
 }
-.lane{display:flex;flex-direction:column;gap:10px;min-width:0;justify-content:space-around}
+.lane{display:flex;flex-direction:column;gap:12px;min-width:0;justify-content:space-around}
 
-/* Карточка: слева квадрат под картинку во всю высоту, справа название
-   крупным шрифтом и полоса под значки эффектов. Категория показана точкой
-   её цвета — название категории всплывает подсказкой. */
+/* ------------------------------------------------------------------ */
+/*  Карточка технологии                                                */
+/*  Слева квадратная иллюстрация во всю высоту, справа сверху вниз:    */
+/*  название, стоимость, значки эффектов и прокручиваемый список того, */
+/*  что технология даёт игре. Оформление пергаментное, «игровое»:      */
+/*  тёплая подложка, двойная рамка, тиснёный заголовок.                */
+/* ------------------------------------------------------------------ */
+:root{
+  --card-bg-1:#fdf3dd; --card-bg-2:#f3e2ba; --card-edge:#c9a86a; --card-edge-2:#8a6a35;
+  --card-ink:#3b2f1c;  --card-ink-dim:#7a6540; --card-cost:#2f5fa8; --card-group:#a3502a;
+}
+/* Переопределения под тёмную тему намеренно нет: карточка остаётся
+   пергаментной в обеих темах. Это игровой предмет, а не элемент
+   интерфейса, и на тёмной доске он должен выделяться, как в образце. */
 .node{
-  position:relative;border:1px solid var(--border);border-radius:12px;
-  background:var(--surface);box-shadow:var(--shadow);overflow:hidden;
-  border-left:5px solid var(--branch, var(--accent));
-  transition:box-shadow .12s ease, transform .08s ease;
+  position:relative;min-height:104px;border-radius:10px;overflow:hidden;
+  background:linear-gradient(180deg, var(--card-bg-1), var(--card-bg-2));
+  border:1px solid var(--card-edge-2);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.35), 0 2px 4px rgba(40,28,10,.18), 0 8px 18px rgba(40,28,10,.14);
+  transition:transform .08s ease, box-shadow .12s ease;
 }
-.node:hover{transform:translateY(-1px);box-shadow:0 2px 4px rgba(0,0,0,.08), 0 10px 24px rgba(0,0,0,.10)}
+.node:hover{
+  transform:translateY(-2px);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.45), 0 4px 8px rgba(40,28,10,.22), 0 14px 28px rgba(40,28,10,.20);
+}
 .node.manual{border-style:dashed}
-.node.dim{opacity:.25}
-.node.hi{box-shadow:0 0 0 2px var(--text), var(--shadow)}
+.node.dim{opacity:.28}
+.node.hi{box-shadow:0 0 0 2px var(--branch, var(--card-edge)), 0 8px 18px rgba(40,28,10,.25)}
 
-.node-link{display:flex;align-items:stretch;gap:12px;text-decoration:none;color:inherit;padding:0}
+.node-link{display:flex;align-items:stretch;text-decoration:none;color:var(--card-ink)}
+
+/* квадратная иллюстрация во всю высоту карточки */
 .node-art{
-  position:relative;flex:0 0 auto;width:88px;align-self:stretch;
-  display:flex;align-items:center;justify-content:center;overflow:hidden;
-  background:var(--surface-2);border-right:1px solid var(--border);
+  position:relative;flex:0 0 auto;width:104px;align-self:stretch;overflow:hidden;
+  border-right:2px solid var(--card-edge-2);
+  background:var(--card-bg-2);
 }
-/* иллюстрация несёт собственный фон, поэтому занимает квадрат целиком */
 .node-art img{width:100%;height:100%;object-fit:cover;display:block}
 .node-art-empty{
   display:flex;align-items:center;justify-content:center;width:100%;height:100%;
-  font-size:26px;font-weight:700;color:var(--surface);
-  background:linear-gradient(160deg, var(--branch, var(--accent)), rgba(0,0,0,.45));
+  font-size:34px;font-weight:700;color:rgba(255,255,255,.85);
+  background:linear-gradient(160deg, var(--branch, #8a6a35), rgba(0,0,0,.5));
 }
 
-.node-body{
-  display:flex;flex-direction:column;justify-content:flex-start;gap:5px;
-  padding:9px 12px 8px 11px;min-width:0;flex:1;
+.node-body{display:flex;flex-direction:column;min-width:0;flex:1;padding:6px 9px 7px}
+.node-name{
+  display:block;text-align:center;font-size:14.5px;font-weight:700;line-height:1.2;
+  color:var(--card-ink);text-shadow:0 1px 0 rgba(255,255,255,.4);overflow-wrap:anywhere;
+}
+.node-dot{
+  display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px;
+  background:var(--branch, var(--card-edge));vertical-align:middle;cursor:help;
 }
 .node-cost{
-  display:inline-flex;align-items:center;gap:5px;align-self:flex-start;
-  padding:1px 8px 1px 6px;border-radius:99px;font-size:11.5px;font-weight:700;
-  background:var(--surface-2);color:var(--text-dim);font-variant-numeric:tabular-nums;
+  display:block;text-align:center;font-size:14px;font-style:italic;font-weight:700;
+  color:var(--card-cost);font-variant-numeric:tabular-nums;margin-top:1px;
 }
-.node-cost-icon{
-  width:9px;height:9px;border-radius:50%;
-  background:linear-gradient(150deg, #ffd166, #e08e2b);
-}
-.node-effects .eff-none{font-size:10.5px;color:var(--text-faint);line-height:18px}
-.node-head{display:flex;align-items:flex-start;gap:7px}
-.node-dot{
-  flex:0 0 auto;width:11px;height:11px;border-radius:4px;margin-top:4px;
-  background:var(--branch, var(--accent));cursor:help;
-}
-.node-name{font-size:15px;font-weight:600;line-height:1.25;overflow-wrap:anywhere}
-.node-effects{display:flex;flex-wrap:wrap;gap:4px;min-height:18px}
+.node-effects{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:3px;min-height:19px;margin-top:2px}
 .node-effects .eff{
-  font-size:12px;line-height:18px;width:20px;height:18px;text-align:center;
-  border-radius:5px;background:var(--surface-2);cursor:help;
+  font-size:12px;line-height:18px;width:20px;height:20px;text-align:center;cursor:help;
+  border-radius:4px;border:1px solid var(--card-edge);
+  color:#fff;background:linear-gradient(180deg, var(--eff, #8a6a35), rgba(0,0,0,.28));
+  text-shadow:0 1px 1px rgba(0,0,0,.35);
 }
+
+/* что технология даёт игре: заголовок вида и список под ним */
+.node-info{
+  display:block;flex:1;min-height:0;margin-top:3px;overflow-y:auto;
+  font-size:11px;line-height:1.35;
+  scrollbar-width:thin;scrollbar-color:var(--card-edge) transparent;
+}
+.node-info::-webkit-scrollbar{width:7px}
+.node-info::-webkit-scrollbar-thumb{background:var(--card-edge);border-radius:4px}
+.node-info .grp{display:block;color:var(--card-group);font-weight:700}
+.node-info .grp.muted{color:var(--card-ink-dim);font-weight:400;font-style:italic}
+.node-info .items{display:block;margin:0 0 2px}
+.node-info .items span{display:block;color:var(--card-ink);padding-left:11px;position:relative}
+.node-info .items span::before{content:"•";position:absolute;left:2px;color:var(--card-ink-dim)}
+
 .node .tag-manual{
-  flex:0 0 auto;font-size:9px;padding:1px 5px;border-radius:99px;
-  background:var(--accent);color:var(--accent-ink);margin-top:3px;
+  display:inline-block;font-size:9px;padding:0 5px;border-radius:99px;margin-left:5px;
+  background:var(--card-group);color:#fff;vertical-align:middle;
 }
 .node .drop{
-  position:absolute;top:4px;right:5px;font-size:15px;line-height:1;color:var(--text-faint);
-  background:var(--surface);border:1px solid var(--border);border-radius:6px;
+  position:absolute;top:4px;right:5px;font-size:14px;line-height:1;color:var(--card-ink-dim);
+  background:rgba(255,255,255,.7);border:1px solid var(--card-edge);border-radius:5px;
   cursor:pointer;padding:0 5px;display:none;z-index:2;
 }
 .node:hover .drop{display:block}
-.node .drop:hover{color:var(--danger);border-color:var(--danger)}
+.node .drop:hover{color:#a3282a;border-color:#a3282a}

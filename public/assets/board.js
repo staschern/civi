@@ -13,10 +13,18 @@
 
   var board = JSON.parse(mount.dataset.board);
 
-  /* Значок эффекта: по одному на каждый эффект технологии. */
+  /* Значок эффекта: свой цвет и символ на вид.
+     Намеренно не эмодзи — они есть не во всех системах и на части машин
+     показываются пустыми прямоугольниками. */
   var EFFECT_ICON = {
-    resource: '🪨', unit: '⚔️', building: '🏛️', building_level: '⬆️',
-    concept: '💡', card: '🃏', resource_rate: '⚡', bonus: '✨',
+    resource:       { s: '\u25CF', c: '#4e8c3f' },
+    unit:           { s: '\u25B2', c: '#c1121f' },
+    building:       { s: '\u2302', c: '#8a5a33' },
+    building_level: { s: '\u2191', c: '#5b3a24' },
+    concept:        { s: '\u2726', c: '#7e57c2' },
+    card:           { s: '\u25A0', c: '#2f5fa8' },
+    resource_rate:  { s: '%',       c: '#d98324' },
+    bonus:          { s: '\u271A', c: '#2f8f88' },
   };
 
 
@@ -92,14 +100,28 @@
     el.dataset.id = n.id;
     el.style.setProperty('--branch', n.color);
 
-    var effects = (n.effects || []).map(function (e) {
-      return '<span class="eff" title="' + escapeHtml(e.type + ': ' + e.title) + '">' +
-        (EFFECT_ICON[e.code] || '•') + '</span>';
+    var list = (n.effects || []);
+    var icons = list.map(function (e) {
+      var ico = EFFECT_ICON[e.code] || { s: '\u2022', c: '#7a6540' };
+      return '<span class="eff" style="--eff:' + ico.c + '" title="' +
+        escapeHtml(e.type + ': ' + e.title) + '">' + ico.s + '</span>';
     }).join('');
 
-    // Порядок в правой части сверху вниз: название, стоимость, эффекты.
-    // Вся карточка — одна ссылка, поэтому технология открывается кликом
-    // в любую точку, а не только по названию.
+    // Подробности группируются по виду эффекта: заголовок вида и списком
+    // то, что технология даёт игре. Блок прокручивается внутри карточки,
+    // поэтому длинный список не растягивает её по высоте.
+    var groups = {}, order = [];
+    list.forEach(function (e) {
+      if (!groups[e.type]) { groups[e.type] = []; order.push(e.type); }
+      groups[e.type].push(e.title);
+    });
+    var info = order.map(function (type) {
+      return '<span class="grp">' + escapeHtml(type) + '</span><span class="items">' +
+        groups[type].map(function (t) { return '<span>' + escapeHtml(t) + '</span>'; }).join('') +
+        '</span>';
+    }).join('');
+
+    // вся карточка — одна ссылка: технология открывается кликом в любую точку
     el.innerHTML =
       '<a class="node-link" href="index.php?p=technology&id=' + n.tech_id + '">' +
         '<span class="node-art">' +
@@ -108,15 +130,14 @@
             : '<span class="node-art-empty">' + escapeHtml(n.name.slice(0, 1)) + '</span>') +
         '</span>' +
         '<span class="node-body">' +
-          '<span class="node-head">' +
+          '<span class="node-name">' +
             '<span class="node-dot" title="' + escapeHtml(n.branch) + '"></span>' +
-            '<span class="node-name">' + escapeHtml(n.name) + '</span>' +
+            escapeHtml(n.name) +
             (n.source === 'manual' ? '<span class="tag-manual">вручную</span>' : '') +
           '</span>' +
-          '<span class="node-cost" title="Стоимость технологии">' +
-            '<span class="node-cost-icon"></span>' + n.cost +
-          '</span>' +
-          '<span class="node-effects">' + (effects || '<span class="eff-none">нет эффектов</span>') + '</span>' +
+          '<span class="node-cost" title="Стоимость технологии">' + n.cost + '</span>' +
+          '<span class="node-effects">' + icons + '</span>' +
+          '<span class="node-info">' + (info || '<span class="grp muted">эффекты не заданы</span>') + '</span>' +
         '</span>' +
       '</a>' +
       '<button class="drop" title="Убрать с доски этой версии">×</button>';
