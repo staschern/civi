@@ -139,7 +139,9 @@ $selectedPrereqs = array_flip($prereqs);
       <h2>Связи на доске</h2>
       <p class="hint">Столбец <?= (int) $boardLinks['column'] + 1 ?>.
         Галочки меняют связи сразу: карточка встаёт в столбец за самой поздней
-        из своих основ, доска пересобирается.</p>
+        из своих основ, доска пересобирается. Соседей из этого же столбца
+        выбирать можно — они разъедутся по столбцам сами, а эпоха при
+        нехватке места получит ещё один столбец.</p>
 
       <form method="post" action="<?= h(url('link-bulk')) ?>" class="stack tight">
         <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
@@ -148,9 +150,9 @@ $selectedPrereqs = array_flip($prereqs);
         <input type="hidden" name="technology_id" value="<?= (int) $tech['id'] ?>">
 
         <fieldset>
-          <legend>Сначала нужно открыть <span class="hint">столбцы левее</span></legend>
+          <legend>Сначала нужно открыть <span class="hint">этот столбец и левее</span></legend>
           <?php if ($boardLinks['before'] === []): ?>
-            <p class="hint">Левее ничего нет — это первый столбец.</p>
+            <p class="hint">Слева и рядом ничего нет — это первый столбец.</p>
           <?php else: ?>
             <div class="checklist">
               <?php foreach ($boardLinks['before'] as $row): ?>
@@ -167,9 +169,9 @@ $selectedPrereqs = array_flip($prereqs);
         </fieldset>
 
         <fieldset>
-          <legend>Открывает <span class="hint">столбцы правее</span></legend>
+          <legend>Открывает <span class="hint">этот столбец и правее</span></legend>
           <?php if ($boardLinks['after'] === []): ?>
-            <p class="hint">Правее ничего нет — это последний столбец.</p>
+            <p class="hint">Справа и рядом ничего нет — это последний столбец.</p>
           <?php else: ?>
             <div class="checklist">
               <?php foreach ($boardLinks['after'] as $row): ?>

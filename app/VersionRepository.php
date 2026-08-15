@@ -25,6 +25,25 @@ final class VersionRepository
     private const COST_STEP = 1.5;
     private const COST_JITTER = 0.15;
 
+    /**
+     * Потолок стоимости одной технологии.
+     *
+     * Коэффициент 1.5 растёт быстро: к сороковому столбцу выходит уже
+     * больше миллиарда. Столбцов может стать больше (эпохи растут при
+     * ручной правке связей), а в базе стоимость — INT UNSIGNED, поэтому
+     * упираемся в круглый потолок с запасом до предела типа.
+     */
+    public const COST_MAX = 2000000000;
+
+    /**
+     * Потолок числа столбцов внутри одной эпохи.
+     *
+     * Ручная правка связей может выстроить длинную цепочку внутри эпохи,
+     * и эпоха честно растёт столбцами следом. Но расти без предела доска
+     * не должна, поэтому цепочки длиннее этого значения отклоняются.
+     */
+    public const LANE_LIMIT = 12;
+
     /** @var Db */
     private $db;
 
@@ -405,7 +424,7 @@ final class VersionRepository
         $base = ($costBase ?? self::COST_BASE) * pow(self::COST_STEP, $globalColumn);
         $jitter = 1.0 + (($rng->next() * 2) - 1) * self::COST_JITTER;
 
-        return max(1, (int) round($base * $jitter));
+        return max(1, min(self::COST_MAX, (int) round($base * $jitter)));
     }
 
     /** Границы диапазона стоимостей столбца — для подсказок в интерфейсе. */
@@ -414,8 +433,8 @@ final class VersionRepository
         $base = ($costBase ?? self::COST_BASE) * pow(self::COST_STEP, $globalColumn);
 
         return [
-            (int) round($base * (1 - self::COST_JITTER)),
-            (int) round($base * (1 + self::COST_JITTER)),
+            min(self::COST_MAX, (int) round($base * (1 - self::COST_JITTER))),
+            min(self::COST_MAX, (int) round($base * (1 + self::COST_JITTER))),
         ];
     }
 
@@ -449,10 +468,15 @@ final class VersionRepository
      * Переставляет карточки по столбцам согласно связям.
      *
      * Карточка встаёт в столбец сразу за самой поздней из своих основ;
-     * если основ нет — в первый столбец своей эпохи. Эпоха при этом
-     * не меняется, поэтому результат зажимается в границы её столбцов.
-     * Перестановка идёт волнами: сдвиг одной карточки может потянуть
-     * за собой зависящие от неё.
+     * если основ нет — в первый столбец своей эпохи. Эпоха не меняется,
+     * но число столбцов внутри неё не фиксировано: если основа лежит
+     * в последнем столбце эпохи, эпоха получает ещё один столбец.
+     * Лишние пустые столбцы в конце эпохи убираются, но меньше двух
+     * не становится.
+     *
+     * Стоимости технологий при этом не трогаются: переезд карточки
+     * меняет только её положение. Средние по столбцам считаются
+     * от номера столбца и пересчитываются сами.
      *
      * @return int сколько карточек переехало
      */
@@ -462,7 +486,22 @@ final class VersionRepository
 
         foreach ($this->db->all('SELECT id FROM trees ORDER BY position, id') as $tree) {
             $treeId = (int) $tree['id'];
-            $ranges = $this->eraColumnRanges($versionId, $treeId);
+
+            $eraOrder = [];
+            $lanes = [];
+            foreach ($this->db->all(
+                'SELECT tve.id, COALESCE(l.lanes, ?) AS lanes
+                   FROM tree_version_eras tve
+                   LEFT JOIN tree_version_era_lanes l ON l.version_era_id = tve.id AND l.tree_id = ?
+                  WHERE tve.version_id = ? ORDER BY tve.position, tve.id',
+                [TreeGenerator::LANE_MIN, $treeId, $versionId]
+            ) as $row) {
+                $eraOrder[] = (int) $row['id'];
+                $lanes[(int) $row['id']] = max(1, (int) $row['lanes']);
+            }
+            if ($eraOrder === []) {
+                continue;
+            }
 
             $nodes = [];
             foreach ($this->db->all(
@@ -492,35 +531,53 @@ final class VersionRepository
                 $incoming[(int) $row['to_node_id']][] = (int) $row['from_node_id'];
             }
 
-            // волны: 40 проходов с запасом, обычно хватает двух-трёх
+            // Волнами: пересчитали положения — посмотрели, сколько столбцов
+            // теперь нужно эпохам — пересчитали снова, потому что рост одной
+            // эпохи сдвигает сквозную нумерацию всех последующих.
             for ($pass = 0; $pass < 40; $pass++) {
+                $first = [];
+                $offset = 0;
+                foreach ($eraOrder as $eraId) {
+                    $first[$eraId] = $offset;
+                    $offset += $lanes[$eraId];
+                }
+
                 $order = array_keys($nodes);
                 usort($order, static function ($a, $b) use ($nodes) {
                     return $nodes[$a]['col'] <=> $nodes[$b]['col'];
                 });
 
-                $changed = false;
                 foreach ($order as $id) {
-                    $range = $ranges[$nodes[$id]['era']] ?? null;
-                    if ($range === null) {
-                        continue;
-                    }
-                    $desired = $range['first'];
+                    $eraFirst = $first[$nodes[$id]['era']] ?? 0;
+                    $desired = $eraFirst;
                     foreach ($incoming[$id] ?? [] as $srcId) {
                         if (isset($nodes[$srcId])) {
                             $desired = max($desired, $nodes[$srcId]['col'] + 1);
                         }
                     }
-                    $desired = min(max($desired, $range['first']), $range['last']);
-                    if ($desired !== $nodes[$id]['col']) {
-                        $nodes[$id]['col'] = $desired;
-                        $nodes[$id]['lane'] = $desired - $range['first'];
-                        $changed = true;
-                    }
+                    // левее своей эпохи карточка уйти не может
+                    $nodes[$id]['lane'] = max(0, $desired - $eraFirst);
+                    $nodes[$id]['col'] = $eraFirst + $nodes[$id]['lane'];
                 }
-                if (!$changed) {
+
+                // сколько столбцов теперь нужно каждой эпохе
+                $needed = [];
+                foreach ($eraOrder as $eraId) {
+                    $needed[$eraId] = TreeGenerator::LANE_MIN;
+                }
+                foreach ($nodes as $n) {
+                    $needed[$n['era']] = max($needed[$n['era']], $n['lane'] + 1);
+                }
+                // потолок на случай, если связи выстроились в длинную цепочку
+                // внутри одной эпохи: расти бесконечно доска не должна
+                foreach ($needed as $eraId => $value) {
+                    $needed[$eraId] = min($value, self::LANE_LIMIT);
+                }
+
+                if ($needed === $lanes) {
                     break;
                 }
+                $lanes = $needed;
             }
 
             // перенумеровываем строки внутри каждого столбца
@@ -535,6 +592,14 @@ final class VersionRepository
                 foreach ($ids as $i => $id) {
                     $nodes[$id]['row'] = $i;
                 }
+            }
+
+            foreach ($lanes as $eraId => $value) {
+                $this->db->run(
+                    'INSERT INTO tree_version_era_lanes (version_era_id, tree_id, lanes)
+                     VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE lanes = VALUES(lanes)',
+                    [$eraId, $treeId, $value]
+                );
             }
 
             foreach ($nodes as $id => $n) {
@@ -584,22 +649,19 @@ final class VersionRepository
                     [$versionId, $fromNodeId, $toNodeId]
                 );
             } else {
-                // обратная связь того же ребра — это цикл
-                $back = (int) $db->value(
-                    'SELECT COUNT(*) FROM tree_version_links
-                      WHERE version_id = ? AND from_node_id = ? AND to_node_id = ?',
-                    [$versionId, $toNodeId, $fromNodeId]
-                );
-                if ($back > 0) {
-                    throw new UserError('Обратная связь уже есть — получилось бы кольцо');
+                // единственное, что нельзя проверить раскладкой, — кольцо:
+                // если от зависимой уже есть путь к основе, связь замкнёт круг
+                if ($this->pathExists($db, $versionId, $toNodeId, $fromNodeId)) {
+                    throw new UserError(
+                        '«' . $to['name'] . '» уже открывает дорогу к «' . $from['name']
+                        . '» — получилось бы кольцо'
+                    );
                 }
 
                 // Столбцы не проверяем заранее: связь допускается и между
                 // карточками одного столбца. Правильные позиции посчитает
-                // reposition() — зависимая уедет правее, а основа встанет
-                // настолько левее, насколько позволяют её собственные основы
-                // и границы эпохи. Если после этого связь всё равно
-                // не укладывается слева направо, ниже мы её отклоним.
+                // reposition() — зависимая уедет правее, а эпоха при нехватке
+                // места получит ещё один столбец.
                 $db->run(
                     'INSERT INTO tree_version_links (version_id, from_node_id, to_node_id, origin)
                      VALUES (?, ?, ?, \'manual\')',
@@ -611,7 +673,8 @@ final class VersionRepository
             $this->reposition($versionId);
 
             // после перестановки связь обязана идти строго слева направо;
-            // если места не нашлось — откатываем всю правку
+            // эпоха для этого растёт столбцами, но не бесконечно — если
+            // упёрлись в потолок, откатываем всю правку
             if (!$exists) {
                 $bad = $db->one(
                     'SELECT sf.global_column AS from_col, st.global_column AS to_col
@@ -621,14 +684,54 @@ final class VersionRepository
                 );
                 if ($bad !== null && (int) $bad['from_col'] >= (int) $bad['to_col']) {
                     throw new UserError(
-                        'Так нельзя: «' . $from['name'] . '» некуда сдвинуть левее, '
-                        . 'а «' . $to['name'] . '» — правее в пределах своей эпохи'
+                        'Так нельзя: цепочка от «' . $from['name'] . '» к «' . $to['name']
+                        . '» не помещается — в эпохе уже ' . self::LANE_LIMIT . ' столбцов'
                     );
                 }
             }
 
             return $this->boardState($versionId);
         });
+    }
+
+    /**
+     * Есть ли на доске путь по связям от одной карточки к другой.
+     *
+     * Нужен, чтобы не дать замкнуть кольцо: новая связь «основа → зависимая»
+     * допустима, только если от зависимой ещё нет дороги обратно к основе.
+     * Обход идёт волнами по уже сохранённым связям, поэтому в пакетной
+     * правке каждая следующая связь проверяется с учётом предыдущих.
+     */
+    private function pathExists(Db $db, int $versionId, int $fromNodeId, int $toNodeId): bool
+    {
+        if ($fromNodeId === $toNodeId) {
+            return true;
+        }
+        $seen = [$fromNodeId => true];
+        $frontier = [$fromNodeId];
+
+        while ($frontier !== []) {
+            $marks = implode(', ', array_fill(0, count($frontier), '?'));
+            $rows = $db->all(
+                'SELECT to_node_id FROM tree_version_links
+                  WHERE version_id = ? AND from_node_id IN (' . $marks . ')',
+                array_merge([$versionId], $frontier)
+            );
+            $next = [];
+            foreach ($rows as $row) {
+                $id = (int) $row['to_node_id'];
+                if ($id === $toNodeId) {
+                    return true;
+                }
+                if (!isset($seen[$id])) {
+                    $seen[$id] = true;
+                    $next[] = $id;
+                }
+            }
+            $frontier = $next;
+        }
+
+        return false;
     }
 
     /** Карточка версии вместе с названием технологии. */
@@ -680,6 +783,7 @@ final class VersionRepository
         // Показываем не всю доску, а ближние столбцы: списком на три сотни
         // галочек пользоваться невозможно. Уже связанные попадают в список
         // всегда, даже если лежат далеко.
+        $col = (int) $node['global_column'];
         $reach = 3;
         $inc = array_flip($incoming);
         $out = array_flip($outgoing);
@@ -688,9 +792,13 @@ final class VersionRepository
         foreach ($all as $row) {
             $rowCol = (int) $row['global_column'];
             $id = (int) $row['id'];
-            if ($rowCol < $col && ($rowCol >= $col - $reach || isset($inc[$id]))) {
+            $near = abs($rowCol - $col) <= $reach;
+            // соседи из того же столбца попадают в оба списка: связь с ними
+            // разрешена, а доска после сохранения сама разведёт карточки
+            if ($rowCol <= $col && ($near || isset($inc[$id]))) {
                 $before[] = $row;
-            } elseif ($rowCol > $col && ($rowCol <= $col + $reach || isset($out[$id]))) {
+            }
+            if ($rowCol >= $col && ($near || isset($out[$id]))) {
                 $after[] = $row;
             }
         }
@@ -719,36 +827,45 @@ final class VersionRepository
 
             $valid = [];
             foreach ($db->all(
-                'SELECT id, global_column FROM tree_version_nodes
-                  WHERE version_id = ? AND tree_id = ?',
+                'SELECT id FROM tree_version_nodes WHERE version_id = ? AND tree_id = ?',
                 [$versionId, $node['tree_id']]
             ) as $row) {
-                $valid[(int) $row['id']] = (int) $row['global_column'];
+                $valid[(int) $row['id']] = true;
             }
-            $col = (int) $node['global_column'];
 
             $db->run('DELETE FROM tree_version_links WHERE version_id = ? AND to_node_id = ?',
                 [$versionId, $nodeId]);
             $db->run('DELETE FROM tree_version_links WHERE version_id = ? AND from_node_id = ?',
                 [$versionId, $nodeId]);
 
+            // Столбцы не сверяем: карточка сама встанет куда надо, а эпоха
+            // при нехватке места получит ещё один столбец. Отсекаем только
+            // связи, которые замкнули бы кольцо.
             foreach (array_unique(array_map('intval', $incoming)) as $srcId) {
-                if ($srcId !== $nodeId && isset($valid[$srcId]) && $valid[$srcId] < $col) {
-                    $db->run(
-                        'INSERT IGNORE INTO tree_version_links
-                            (version_id, from_node_id, to_node_id, origin) VALUES (?, ?, ?, \'manual\')',
-                        [$versionId, $srcId, $nodeId]
-                    );
+                if ($srcId === $nodeId || !isset($valid[$srcId])) {
+                    continue;
                 }
+                if ($this->pathExists($db, $versionId, $nodeId, $srcId)) {
+                    continue;
+                }
+                $db->run(
+                    'INSERT IGNORE INTO tree_version_links
+                        (version_id, from_node_id, to_node_id, origin) VALUES (?, ?, ?, \'manual\')',
+                    [$versionId, $srcId, $nodeId]
+                );
             }
             foreach (array_unique(array_map('intval', $outgoing)) as $dstId) {
-                if ($dstId !== $nodeId && isset($valid[$dstId]) && $valid[$dstId] > $col) {
-                    $db->run(
-                        'INSERT IGNORE INTO tree_version_links
-                            (version_id, from_node_id, to_node_id, origin) VALUES (?, ?, ?, \'manual\')',
-                        [$versionId, $nodeId, $dstId]
-                    );
+                if ($dstId === $nodeId || !isset($valid[$dstId])) {
+                    continue;
                 }
+                if ($this->pathExists($db, $versionId, $dstId, $nodeId)) {
+                    continue;
+                }
+                $db->run(
+                    'INSERT IGNORE INTO tree_version_links
+                        (version_id, from_node_id, to_node_id, origin) VALUES (?, ?, ?, \'manual\')',
+                    [$versionId, $nodeId, $dstId]
+                );
             }
 
             $db->run('UPDATE tree_versions SET status = \'edited\' WHERE id = ?', [$versionId]);
@@ -864,7 +981,27 @@ final class VersionRepository
             ];
         }
 
-        return ['nodes' => $nodes, 'links' => $links, 'problems' => $this->validate($versionId)];
+        // число столбцов могло измениться: эпоха растёт, когда карточке
+        // не хватило места, и сжимается, когда столбец опустел
+        $lanes = [];
+        foreach ($this->db->all(
+            'SELECT l.version_era_id, l.tree_id, l.lanes, tve.era_id
+               FROM tree_version_era_lanes l
+               JOIN tree_version_eras tve ON tve.id = l.version_era_id
+              WHERE tve.version_id = ?',
+            [$versionId]
+        ) as $row) {
+            $lanes[] = [
+                'tree' => (int) $row['tree_id'],
+                'era_id' => (int) $row['version_era_id'],
+                'lanes' => (int) $row['lanes'],
+            ];
+        }
+
+        return [
+            'nodes' => $nodes, 'links' => $links, 'lanes' => $lanes,
+            'problems' => $this->validate($versionId),
+        ];
     }
 
     /**

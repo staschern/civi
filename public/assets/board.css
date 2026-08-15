@@ -161,8 +161,22 @@ svg.edges{position:absolute;top:0;left:0;pointer-events:none;overflow:visible}
   100%{box-shadow:inset 0 0 0 1px rgba(255,255,255,.35), 0 2px 4px rgba(40,28,10,.18)}
 }
 
+/* ---- закреплённая панель над деревом ---- */
+/* Лежит вне .board-scroll, поэтому горизонтальная прокрутка доски её не
+   уносит, а sticky удерживает её при прокрутке страницы вниз. */
+.board-toolbar{
+  position:sticky;top:0;z-index:25;
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px;
+  margin:0 0 12px;padding:9px 12px;
+  border:1px solid var(--border);border-radius:10px;
+  background:var(--surface);box-shadow:0 4px 12px rgba(0,0,0,.18);
+}
+.board-toolbar .hint{margin:0}
+.board-toolbar .tb-sum{margin-left:auto;font-size:12px;color:var(--text-dim);white-space:nowrap}
+.board-toolbar .tb-sum b{color:var(--text);font-variant-numeric:tabular-nums}
+
 #edit-banner{
-  display:none;position:sticky;top:0;z-index:20;margin:0 0 10px;
+  display:none;position:sticky;top:56px;z-index:20;margin:0 0 10px;
   padding:9px 14px;border-radius:9px;font-size:12.5px;font-weight:600;
   background:var(--card-group);color:#fff;box-shadow:0 4px 12px rgba(0,0,0,.25);
 }

@@ -35,7 +35,12 @@
   var COST_STEP = 1.5;
 
   /** Среднее столбца: база версии, умноженная на 1.5 в степени номера. */
-  function columnAverage(col) { return Math.round(COST_BASE * Math.pow(COST_STEP, col)); }
+  // тот же потолок, что и на сервере (VersionRepository::COST_MAX):
+  // стоимость лежит в INT UNSIGNED, а 1.5 в степени растёт быстро
+  var COST_MAX = 2000000000;
+  function columnAverage(col) {
+    return Math.min(COST_MAX, Math.round(COST_BASE * Math.pow(COST_STEP, col)));
+  }
   function money(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
 
   /* Режим правки связей: {node: id, side: 'out'|'in'}.
@@ -71,7 +76,33 @@
     window.addEventListener('resize', function () { drawEdges(boardEl, svgEl, tree.id); });
   });
 
+  wireToolbar();
   if (FOCUS) { focusNode(FOCUS); }
+
+  /* Кнопка пересчёта всех стоимостей. Живёт в закреплённой панели над
+     доской, поэтому остаётся на экране при любой горизонтальной
+     прокрутке дерева. */
+  function wireToolbar() {
+    var btn = document.getElementById('recalc-all');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      if (!confirm('Пересчитать стоимости всех технологий во всех эпохах ' +
+                   'по средним, заданным для столбцов?')) return;
+      recalc({ scope: 'version' });
+    });
+    updateTotals();
+  }
+
+  /* Итог по всей версии в закреплённой панели. */
+  function updateTotals() {
+    var el = document.getElementById('version-total');
+    if (!el) return;
+    var total = 0;
+    board.trees.forEach(function (tree) {
+      tree.nodes.forEach(function (n) { total += n.cost; });
+    });
+    el.textContent = money(total);
+  }
 
   /* Раскладка столбцов одного дерева. Вызывается заново после правки
      связей: сервер присылает новые позиции, доска перерисовывается
@@ -194,6 +225,7 @@
         });
       });
       redrawAll();
+      updateTotals();
     }).catch(function () { alert('Сервер недоступен, стоимости не изменены'); });
   }
 
@@ -377,6 +409,18 @@
 
   /* Новые позиции и связи с сервера: обновляем данные и перерисовываем. */
   function applyState(state) {
+    // эпоха могла получить дополнительный столбец или потерять пустой
+    if (state.lanes) {
+      var lanesBy = {};
+      state.lanes.forEach(function (l) { lanesBy[l.tree + ':' + l.era_id] = l.lanes; });
+      board.trees.forEach(function (tree) {
+        tree.eras.forEach(function (era) {
+          var value = lanesBy[tree.id + ':' + era.era_id];
+          if (value) era.lanes = value;
+        });
+      });
+    }
+
     var pos = {};
     state.nodes.forEach(function (n) { pos[n.id] = n; });
     board.trees.forEach(function (tree) {
@@ -388,6 +432,7 @@
     });
     board.links = state.links;
     redrawAll();
+    updateTotals();
 
     var box = document.getElementById('board-problems');
     if (box) {
