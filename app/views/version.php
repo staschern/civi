@@ -11,7 +11,10 @@ foreach ($data['trees'] as $tree) {
     $columns = [];
     foreach ($data['eras'] as $era) {
         $lanes = $data['lanes'][$tree['id']][$era['id']] ?? 2;
-        $columns[] = ['era_id' => (int) $era['id'], 'name' => $era['name'], 'lanes' => (int) $lanes];
+        $columns[] = [
+            'era_id' => (int) $era['id'], 'name' => $era['name'],
+            'period' => $era['period'] ?? '', 'lanes' => (int) $lanes,
+        ];
     }
     $nodes = [];
     foreach ($data['nodes'] as $n) {
@@ -123,8 +126,13 @@ foreach ($data['links'] as $l) {
 <!-- Панель прилипает к верху окна и лежит вне горизонтальной прокрутки
      доски, поэтому кнопка пересчёта видна при любом сдвиге дерева вбок. -->
 <div class="board-toolbar">
+  <label class="tb-step">Коэффициент столбца
+    <input type="number" id="cost-step" min="1.05" max="4" step="0.05"
+           value="<?= h(number_format((float) ($version['cost_step'] ?? 1.3), 2, '.', '')) ?>">
+  </label>
   <button type="button" id="recalc-all">Пересчитать стоимости всех эпох</button>
-  <span class="hint">по средним, заданным над столбцами</span>
+  <span class="hint">каждый следующий столбец дороже предыдущего во столько раз;
+    последний <b id="cost-tail">—</b></span>
   <span class="tb-sum">Всего по версии: <b id="version-total">—</b></span>
 </div>
 
@@ -132,7 +140,8 @@ foreach ($data['links'] as $l) {
      data-version="<?= (int) $version['id'] ?>"
      data-csrf="<?= h($csrf) ?>"
      data-focus="<?= (int) ($focus ?? 0) ?>"
-     data-cost-base="<?= (int) ($version['cost_base'] ?? 130) ?>"
+     data-cost-base="<?= (int) ($version['cost_base'] ?? 60) ?>"
+     data-cost-step="<?= h(number_format((float) ($version['cost_step'] ?? 1.3), 2, '.', '')) ?>"
      data-board="<?= h(json_encode($board, JSON_UNESCAPED_UNICODE)) ?>"></div>
 
 <form method="post" action="<?= h(url('version-remove-node')) ?>" id="remove-form" style="display:none">

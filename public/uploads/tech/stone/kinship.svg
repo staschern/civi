@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img">
-  <title>weaving</title>
+  <title>kinship</title>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#4a3f24"/><stop offset="1" stop-color="#a89150"/>
+      <stop offset="0" stop-color="#1e3a24"/><stop offset="1" stop-color="#4e8a52"/>
     </linearGradient>
     <radialGradient id="vig" cx="0.5" cy="0.42" r="0.75">
       <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
@@ -10,6 +10,6 @@
     </radialGradient>
   </defs>
   <rect width="128" height="128" fill="url(#bg)"/>
-  <path d="M0 128V96q32-10 64 0t64 0V128z" fill="#5b4d2c"/><rect x="28" y="28" width="72" height="72" rx="8" fill="#d9c08a"/><path d="M28 46h72M28 64h72M28 82h72" fill="none" stroke="#8a7038" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path d="M46 28v72M64 28v72M82 28v72" fill="none" stroke="#b39a5e" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M0 128V96q32-10 64 0t64 0V128z" fill="#26492c"/><circle cx="64" cy="28" r="11" fill="#ffd166"/><circle cx="30" cy="62" r="11" fill="#8fd18f"/><circle cx="98" cy="62" r="11" fill="#8fd18f"/><circle cx="64" cy="96" r="11" fill="#8fd18f"/><path d="M64 39v18M41 62h46M46 74l12 12M82 74L70 86" fill="none" stroke="#cfe8c9" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
   <rect width="128" height="128" fill="url(#vig)"/>
 </svg>

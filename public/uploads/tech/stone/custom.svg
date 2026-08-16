@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img">
-  <title>militia</title>
+  <title>custom</title>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#3a2020"/><stop offset="1" stop-color="#9a4a3a"/>
+      <stop offset="0" stop-color="#3a3226"/><stop offset="1" stop-color="#8a7a58"/>
     </linearGradient>
     <radialGradient id="vig" cx="0.5" cy="0.42" r="0.75">
       <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
@@ -10,6 +10,6 @@
     </radialGradient>
   </defs>
   <rect width="128" height="128" fill="url(#bg)"/>
-  <path d="M0 128V96q32-10 64 0t64 0V128z" fill="#4a2828"/><path d="M64 18l34 14v30c0 24-16 36-34 42-18-6-34-18-34-42V32z" fill="#d8d2c6"/><path d="M50 62l10 12 22-24" fill="none" stroke="#c1121f" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M0 128V96q32-10 64 0t64 0V128z" fill="#4a4133"/><path d="M64 22v78" fill="none" stroke="#e6d2b5" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M30 38h68" fill="none" stroke="#e6d2b5" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><polygon points="30,38 18,66 42,66" fill="#c9b48a"/><polygon points="98,38 86,66 110,66" fill="#c9b48a"/>
   <rect width="128" height="128" fill="url(#vig)"/>
 </svg>

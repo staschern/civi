@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img">
-  <title>custom_law</title>
+  <title>labor_division</title>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#3a3226"/><stop offset="1" stop-color="#8a7a58"/>
+      <stop offset="0" stop-color="#2e3a2a"/><stop offset="1" stop-color="#6f8a52"/>
     </linearGradient>
     <radialGradient id="vig" cx="0.5" cy="0.42" r="0.75">
       <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
@@ -10,6 +10,6 @@
     </radialGradient>
   </defs>
   <rect width="128" height="128" fill="url(#bg)"/>
-  <path d="M0 128V96q32-10 64 0t64 0V128z" fill="#4a4133"/><path d="M64 22v78" fill="none" stroke="#e6d2b5" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M30 38h68" fill="none" stroke="#e6d2b5" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><polygon points="30,38 18,66 42,66" fill="#c9b48a"/><polygon points="98,38 86,66 110,66" fill="#c9b48a"/>
+  <path d="M0 128V96q32-10 64 0t64 0V128z" fill="#39482f"/><circle cx="42" cy="40" r="12" fill="#f2e8d5"/><circle cx="86" cy="40" r="12" fill="#f2e8d5"/><path d="M20 104c0-18 10-28 22-28s22 10 22 28z" fill="#c58a4e"/><path d="M64 104c0-18 10-28 22-28s22 10 22 28z" fill="#8fb14e"/>
   <rect width="128" height="128" fill="url(#vig)"/>
 </svg>

@@ -104,7 +104,7 @@ const ART = {
     blob('M44 22c-14 12-18 34-12 52s16 30 32 34c16-4 26-16 32-34s2-40-12-52c-8 10-12 16-20 16s-12-6-20-16z', '#e6d2b5') +
     stroke('M64 44v52', '#c2a583', 4) },
 
-  weaving: { bg: ['#4a3f24', '#a89150'], art:
+  cordage: { bg: ['#4a3f24', '#a89150'], art:
     ground('#5b4d2c') +
     rect(28, 28, 72, 72, '#d9c08a', 8) +
     stroke('M28 46h72M28 64h72M28 82h72', '#8a7038', 5) +
@@ -123,7 +123,7 @@ const ART = {
     stroke('M76 58l22-22', '#6b4a2a', 9) +
     poly('92,40 112,20 122,30 102,50', '#b9c2cc') },
 
-  boat: { bg: ['#123a52', '#3f96b8'], art:
+  rafts: { bg: ['#123a52', '#3f96b8'], art:
     blob('M0 96q32-12 64 0t64 0V128H0z', '#1d6b8f') +
     poly('64,18 64,78 100,66', '#f2e8d5') +
     stroke('M64 16v72', '#8a5a33', 5) +
@@ -137,7 +137,7 @@ const ART = {
     blob('M64 74c16 0 28-12 28-28-16 0-28 12-28 28z', '#b8e6a1') +
     circle(64, 38, 8, '#ffd166') },
 
-  counting: { bg: ['#2e2a44', '#6b5f9e'], art:
+  count: { bg: ['#2e2a44', '#6b5f9e'], art:
     ground('#3a3454') +
     rect(24, 26, 22, 76, '#d8d2c6', 5) +
     stroke('M58 36v56M72 36v56M86 36v56M100 36v56', '#cbb7ff', 6) +
@@ -173,7 +173,7 @@ const ART = {
     rect(36, 62, 56, 12, '#e9c46a', 3) +
     rect(44, 74, 40, 30, '#8a8fc4', 3) },
 
-  custom_law: { bg: ['#3a3226', '#8a7a58'], art:
+  custom: { bg: ['#3a3226', '#8a7a58'], art:
     ground('#4a4133') +
     stroke('M64 22v78', '#e6d2b5', 6) +
     stroke('M30 38h68', '#e6d2b5', 6) +
@@ -184,7 +184,7 @@ const ART = {
     blob('M64 16c16 16 24 30 24 44 0 20-12 34-24 40-12-6-24-20-24-40 0-14 8-28 24-44z', '#c9a7ff') +
     circle(64, 56, 11, '#ffe066') },
 
-  paganism: { bg: ['#2e2450', '#6f5ab0'], art:
+  ancestor_cult: { bg: ['#2e2450', '#6f5ab0'], art:
     ground('#3a2e62') +
     poly('64,16 76,50 112,50 82,70 94,104 64,84 34,104 46,70 16,50 52,50', '#ffd166') },
 
@@ -200,29 +200,29 @@ const ART = {
     circle(64, 62, 28, '#c1121f') +
     stroke('M44 42l40 40', '#f2e8d5', 9) },
 
-  mysticism: { bg: ['#1e2444', '#5a63a8'], art:
+  shamanism: { bg: ['#1e2444', '#5a63a8'], art:
     ground('#282e56') +
     circle(64, 40, 14, '#ffe066') +
     blob('M28 104c6-20 18-30 36-30s30 10 36 30z', '#8f7fd6') +
     stroke('M24 30l10 8M104 30l-10 8', '#ffe066', 5) },
 
-  militia: { bg: ['#3a2020', '#9a4a3a'], art:
+  clan_militia: { bg: ['#3a2020', '#9a4a3a'], art:
     ground('#4a2828') +
     blob('M64 18l34 14v30c0 24-16 36-34 42-18-6-34-18-34-42V32z', '#d8d2c6') +
     stroke('M50 62l10 12 22-24', '#c1121f', 8) },
 
-  barter: { bg: ['#3f3a1c', '#9a9040'], art:
+  gift_exchange: { bg: ['#3f3a1c', '#9a9040'], art:
     ground('#4d471f') +
     stroke('M24 48h64', '#ffd166', 7) + poly('88,38 106,48 88,58', '#ffd166') +
     stroke('M104 84H40', '#e9c46a', 7) + poly('40,74 22,84 40,94', '#e9c46a') },
 
-  division_labor: { bg: ['#2e3a2a', '#6f8a52'], art:
+  labor_division: { bg: ['#2e3a2a', '#6f8a52'], art:
     ground('#39482f') +
     circle(42, 40, 12, '#f2e8d5') + circle(86, 40, 12, '#f2e8d5') +
     blob('M20 104c0-18 10-28 22-28s22 10 22 28z', '#c58a4e') +
     blob('M64 104c0-18 10-28 22-28s22 10 22 28z', '#8fb14e') },
 
-  teaching: { bg: ['#123f42', '#3fa89c'], art:
+  oral_teaching: { bg: ['#123f42', '#3fa89c'], art:
     ground('#1b5a5c') +
     poly('64,22 116,44 64,66 12,44', '#e9f7f5') +
     blob('M34 54v22c0 10 14 18 30 18s30-8 30-18V54L64 70z', '#ffd166') },
@@ -246,13 +246,13 @@ const ART = {
     stroke('M42 44l16 18-16 18', '#2f8f88', 7) +
     stroke('M70 80h20', '#2f8f88', 7) },
 
-  alliance: { bg: ['#123a52', '#3f96b8'], art:
+  tribal_alliance: { bg: ['#123a52', '#3f96b8'], art:
     ground('#1b5478') +
     circle(44, 44, 15, '#f2e8d5') + circle(84, 44, 15, '#ffd166') +
     blob('M14 104c0-18 12-30 30-30s30 12 30 30z', '#f2e8d5') +
     blob('M54 104c0-18 12-30 30-30s30 12 30 30z', '#ffd166') },
 
-  clans: { bg: ['#1e3a24', '#4e8a52'], art:
+  kinship: { bg: ['#1e3a24', '#4e8a52'], art:
     ground('#26492c') +
     circle(64, 28, 11, '#ffd166') + circle(30, 62, 11, '#8fd18f') +
     circle(98, 62, 11, '#8fd18f') + circle(64, 96, 11, '#8fd18f') +
@@ -263,6 +263,36 @@ const ART = {
     poly('42,96 62,52 82,96', '#8a5a33') + poly('50,96 62,70 74,96', '#a76e3f') +
     circle(96, 96, 12, '#ff9f1c') + circle(96, 96, 6, '#ffe066') +
     stroke('M14 96h100', '#4a4459', 5) },
+
+  spear: { bg: ['#2f3524', '#7e8a4a'], art:
+    ground('#3a4229') +
+    stroke('M28 108L96 30', '#8b5e3c', 7) +
+    poly('96,30 108,18 104,38 88,42', '#e8dfd0') +
+    stroke('M40 96l16-4', '#5b4a2a', 5) +
+    circle(104, 96, 10, '#c8b8a0', '.5') },
+
+  ground_axe: { bg: ['#33323a', '#7b7686'], art:
+    ground('#403e49') +
+    stroke('M34 104L86 44', '#8b5e3c', 9) +
+    poly('72,52 100,26 116,44 88,68', '#cfd8e0') +
+    poly('72,52 88,68 96,52 82,40', '#9fb0bd') +
+    stroke('M74 58l14 14', '#6d7b88', 4) },
+
+  sling: { bg: ['#3a2f22', '#96794a'], art:
+    ground('#463a29') +
+    stroke('M44 26q22 42 0 70', '#d8c9a8', 5) +
+    stroke('M84 26q-22 42 0 70', '#d8c9a8', 5) +
+    blob('M44 92q20 18 40 0q-20 10-40 0z', '#8b6a3c') +
+    circle(64, 96, 9, '#b9b2a6') +
+    circle(102, 44, 7, '#b9b2a6', '.8') },
+
+  myth_thinking: { bg: ['#241d3f', '#6a4f9c'], art:
+    ground('#2c2450') +
+    circle(64, 54, 26, '#ffd166', '.25') +
+    blob('M64 30c12 0 22 10 22 22 0 14-10 18-10 28H52c0-10-10-14-10-28 0-12 10-22 22-22z', '#f2e8d5') +
+    circle(56, 50, 4, '#3a2f5a') + circle(72, 50, 4, '#3a2f5a') +
+    sun(102, 26, 7, '#ffd166', '#ffe066') +
+    stroke('M30 30l6 6M26 44h9', '#cdbdf0', 4) },
 
   games: { bg: ['#3f3a14', '#a89840'], art:
     ground('#4d4720') +

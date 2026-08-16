@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img">
-  <title>barter</title>
+  <title>clan_militia</title>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#3f3a1c"/><stop offset="1" stop-color="#9a9040"/>
+      <stop offset="0" stop-color="#3a2020"/><stop offset="1" stop-color="#9a4a3a"/>
     </linearGradient>
     <radialGradient id="vig" cx="0.5" cy="0.42" r="0.75">
       <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
@@ -10,6 +10,6 @@
     </radialGradient>
   </defs>
   <rect width="128" height="128" fill="url(#bg)"/>
-  <path d="M0 128V96q32-10 64 0t64 0V128z" fill="#4d471f"/><path d="M24 48h64" fill="none" stroke="#ffd166" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><polygon points="88,38 106,48 88,58" fill="#ffd166"/><path d="M104 84H40" fill="none" stroke="#e9c46a" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><polygon points="40,74 22,84 40,94" fill="#e9c46a"/>
+  <path d="M0 128V96q32-10 64 0t64 0V128z" fill="#4a2828"/><path d="M64 18l34 14v30c0 24-16 36-34 42-18-6-34-18-34-42V32z" fill="#d8d2c6"/><path d="M50 62l10 12 22-24" fill="none" stroke="#c1121f" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
   <rect width="128" height="128" fill="url(#vig)"/>
 </svg>

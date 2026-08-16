@@ -31,13 +31,13 @@
   var CSRF = mount.dataset.csrf;
   var VERSION = Number(mount.dataset.version);
   var FOCUS = Number(mount.dataset.focus || 0);
-  var COST_BASE = Number(mount.dataset.costBase || 130);
-  var COST_STEP = 1.5;
+  var COST_BASE = Number(mount.dataset.costBase || 60);
+  var COST_STEP = Number(mount.dataset.costStep || 1.3);
 
-  /** Среднее столбца: база версии, умноженная на 1.5 в степени номера. */
+  /** Среднее столбца: база версии, умноженная на коэффициент в степени номера. */
   // тот же потолок, что и на сервере (VersionRepository::COST_MAX):
-  // стоимость лежит в INT UNSIGNED, а 1.5 в степени растёт быстро
-  var COST_MAX = 2000000000;
+  // коэффициент в степени растёт быстро, а столбцов в дереве больше шестидесяти
+  var COST_MAX = 1000000000000000;
   function columnAverage(col) {
     return Math.min(COST_MAX, Math.round(COST_BASE * Math.pow(COST_STEP, col)));
   }
@@ -79,29 +79,68 @@
   wireToolbar();
   if (FOCUS) { focusNode(FOCUS); }
 
-  /* Кнопка пересчёта всех стоимостей. Живёт в закреплённой панели над
-     доской, поэтому остаётся на экране при любой горизонтальной
-     прокрутке дерева. */
+  /* Закреплённая панель над доской: коэффициент столбца и пересчёт всех
+     стоимостей. Панель лежит вне горизонтальной прокрутки доски, поэтому
+     остаётся на экране при любом сдвиге дерева вбок. */
   function wireToolbar() {
     var btn = document.getElementById('recalc-all');
+    var step = document.getElementById('cost-step');
     if (!btn) return;
+
     btn.addEventListener('click', function () {
       if (!confirm('Пересчитать стоимости всех технологий во всех эпохах ' +
                    'по средним, заданным для столбцов?')) return;
-      recalc({ scope: 'version' });
+      recalc(withStep({ scope: 'version' }));
     });
+
+    if (step) {
+      // менять коэффициент имеет смысл только вместе с пересчётом:
+      // средние над столбцами и стоимости должны разойтись одновременно
+      step.addEventListener('change', function () {
+        var value = Number(step.value);
+        if (!value || value < 1.05 || value > 4) {
+          alert('Коэффициент должен быть от 1.05 до 4');
+          step.value = COST_STEP.toFixed(2);
+          return;
+        }
+        if (value === COST_STEP) return;
+        recalc({ scope: 'version', step: value });
+      });
+      step.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter') { ev.preventDefault(); step.blur(); }
+      });
+    }
+
     updateTotals();
   }
 
-  /* Итог по всей версии в закреплённой панели. */
+  /* Коэффициент из поля панели — чтобы правка без Enter не потерялась. */
+  function withStep(params) {
+    var step = document.getElementById('cost-step');
+    var value = step ? Number(step.value) : 0;
+    if (value >= 1.05 && value <= 4) params.step = value;
+    return params;
+  }
+
+  /* Итог по всей версии и цена самого правого столбца — чтобы было видно,
+     во что обходится выбранный коэффициент. */
   function updateTotals() {
     var el = document.getElementById('version-total');
     if (!el) return;
     var total = 0;
+    var last = 0;
     board.trees.forEach(function (tree) {
-      tree.nodes.forEach(function (n) { total += n.cost; });
+      tree.nodes.forEach(function (n) {
+        total += n.cost;
+        if (n.col > last) last = n.col;
+      });
     });
     el.textContent = money(total);
+
+    var tail = document.getElementById('cost-tail');
+    if (tail) {
+      tail.textContent = 'столбец ' + (last + 1) + ' ≈ ' + money(columnAverage(last));
+    }
   }
 
   /* Раскладка столбцов одного дерева. Вызывается заново после правки
@@ -131,7 +170,7 @@
             '<label class="ct-avg">среднее' +
               '<input type="number" min="1" step="1" value="' + columnAverage(gcol) + '">' +
             '</label>' +
-            '<button class="ct-apply" title="Применить среднее ко всем столбцам по коэффициенту 1.5">' +
+            '<button class="ct-apply" title="Применить среднее: остальные столбцы поедут за ним по коэффициенту">' +
               'применить' +
             '</button>' +
             '<button class="ct-roll" title="Пересчитать стоимости этого столбца">пересчитать</button>' +
@@ -144,6 +183,7 @@
           '<div class="idx">Эпоха ' + (eraIndex + 1) + ' · столбцы ' +
             (globalColumn + 1) + '–' + (globalColumn + era.lanes) + '</div>' +
           '<div class="name">' + escapeHtml(era.name) + '</div>' +
+          (era.period ? '<div class="period">' + escapeHtml(era.period) + '</div>' : '') +
           '<div class="count">' + inEra.length + ' позиций · ' + era.lanes + ' ' + lanesWord + '</div>' +
           '<div class="era-cost">' +
             '<button class="ct-roll era" data-era="' + era.era_id + '">пересчитать эпоху</button>' +
@@ -187,12 +227,12 @@
     col.querySelectorAll('.col-tool').forEach(function (tool) {
       var gcol = Number(tool.dataset.col);
       tool.querySelector('.ct-roll').addEventListener('click', function () {
-        recalc({ scope: 'column', tree_id: tree.id, column: gcol });
+        recalc(withStep({ scope: 'column', tree_id: tree.id, column: gcol }));
       });
       tool.querySelector('.ct-apply').addEventListener('click', function () {
         var value = Number(tool.querySelector('input').value);
         if (!value || value < 1) { alert('Среднее должно быть положительным числом'); return; }
-        recalc({ scope: 'version', column: gcol, average: value });
+        recalc(withStep({ scope: 'version', column: gcol, average: value }));
       });
       tool.querySelector('input').addEventListener('keydown', function (ev) {
         if (ev.key === 'Enter') { ev.preventDefault(); tool.querySelector('.ct-apply').click(); }
@@ -201,7 +241,7 @@
     var eraBtn = col.querySelector('.ct-roll.era');
     if (eraBtn) {
       eraBtn.addEventListener('click', function () {
-        recalc({ scope: 'era', tree_id: tree.id, version_era_id: era.era_id });
+        recalc(withStep({ scope: 'era', tree_id: tree.id, version_era_id: era.era_id }));
       });
     }
   }
@@ -219,6 +259,14 @@
     }).then(function (r) { return r.json(); }).then(function (res) {
       if (!res.ok) { alert(res.error || 'Не удалось пересчитать стоимости'); return; }
       COST_BASE = res.cost_base;
+      COST_STEP = Number(res.cost_step) || COST_STEP;
+      var stepEl = document.getElementById('cost-step');
+      if (stepEl) stepEl.value = COST_STEP.toFixed(2);
+      if (res.capped) {
+        alert('При коэффициенте ' + COST_STEP.toFixed(2) + ' стоимости ' + res.capped +
+              ' технологий упёрлись в потолок и перестали различаться. ' +
+              'Возьмите коэффициент поменьше.');
+      }
       board.trees.forEach(function (tree) {
         tree.nodes.forEach(function (n) {
           if (res.costs[n.id] !== undefined) n.cost = res.costs[n.id];

@@ -32,6 +32,7 @@ svg.edges{position:absolute;top:0;left:0;pointer-events:none;overflow:visible}
 }
 .era-head .idx{font-size:10px;color:var(--text-faint);letter-spacing:.06em;text-transform:uppercase}
 .era-head .name{font-size:17px;font-weight:700;margin-top:2px}
+.era-head .period{font-size:11.5px;color:var(--text-faint);margin-top:1px}
 .era-head .count{font-size:11.5px;color:var(--text-dim);margin-top:2px}
 
 .node-list{
@@ -172,6 +173,11 @@ svg.edges{position:absolute;top:0;left:0;pointer-events:none;overflow:visible}
   background:var(--surface);box-shadow:0 4px 12px rgba(0,0,0,.18);
 }
 .board-toolbar .hint{margin:0}
+.board-toolbar .tb-step{display:flex;align-items:center;gap:6px;margin:0;font-size:12px;font-weight:600}
+.board-toolbar .tb-step input{
+  width:5.5em;margin:0;padding:4px 7px;font-size:12.5px;
+  font-variant-numeric:tabular-nums;text-align:center;
+}
 .board-toolbar .tb-sum{margin-left:auto;font-size:12px;color:var(--text-dim);white-space:nowrap}
 .board-toolbar .tb-sum b{color:var(--text);font-variant-numeric:tabular-nums}
 

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img">
+  <title>myth_thinking</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#241d3f"/><stop offset="1" stop-color="#6a4f9c"/>
+    </linearGradient>
+    <radialGradient id="vig" cx="0.5" cy="0.42" r="0.75">
+      <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.35"/>
+    </radialGradient>
+  </defs>
+  <rect width="128" height="128" fill="url(#bg)"/>
+  <path d="M0 128V96q32-10 64 0t64 0V128z" fill="#2c2450"/><circle cx="64" cy="54" r="26" fill="#ffd166" opacity=".25"/><path d="M64 30c12 0 22 10 22 22 0 14-10 18-10 28H52c0-10-10-14-10-28 0-12 10-22 22-22z" fill="#f2e8d5"/><circle cx="56" cy="50" r="4" fill="#3a2f5a"/><circle cx="72" cy="50" r="4" fill="#3a2f5a"/><circle cx="102" cy="26" r="13.299999999999999" fill="#ffe066" opacity=".35"/><circle cx="102" cy="26" r="7" fill="#ffd166"/><path d="M30 30l6 6M26 44h9" fill="none" stroke="#cdbdf0" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect width="128" height="128" fill="url(#vig)"/>
+</svg>

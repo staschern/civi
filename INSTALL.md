@@ -163,8 +163,12 @@ FLUSH PRIVILEGES;
 > ```
 
 Накатываем миграцию — в ней и схема, и стандартный набор: 15 эпох,
-41 категория, 567 технологий (294 научных и 273 культурных), 8 видов игровых
-эффектов, а для каменного века ещё описания, исторические справки и картинки:
+41 категория, 623 технологии (327 научных и 296 культурных) с описанием
+и исторической справкой у каждой, 1237 авторских связей, 8 видов игровых
+эффектов и картинки для каменного века. Кроме каталога миграция кладёт
+готовую версию №1 «Базовые деревья» — ту самую пару деревьев со всеми
+связями, столбцами и посчитанными стоимостями, так что сразу после наката
+админке есть что показать:
 
 ```bash
 mysql -u civi -p civi < db/migrations/0001_create_tech_tree_versions.sql
@@ -173,8 +177,8 @@ mysql -u civi -p civi < db/migrations/0001_create_tech_tree_versions.sql
 Проверка:
 
 ```bash
-mysql -u civi -p civi -e "SELECT COUNT(*) FROM technologies WHERE is_standard = 1;"
-# ожидаем 567
+mysql -u civi -p civi -e "SELECT (SELECT COUNT(*) FROM technologies WHERE is_standard = 1) AS tehnologiy, (SELECT COUNT(*) FROM tree_version_nodes) AS kartochek;"
+# ожидаем 623 / 623
 ```
 
 ## 4. Конфигурация и пароль
@@ -375,15 +379,13 @@ git diff --name-only HEAD@{1} HEAD -- db/
 ```
 
 Пусто — база не трогается, обновление кода на этом закончено. Если появились
-новые файлы `db/migrations/*.sql`, применяйте их по возрастанию номера:
+новые файлы `db/migrations/*.sql` с номером больше `0001`, применяйте их
+по возрастанию номера — это обычные `ALTER` поверх существующих данных.
 
-```bash
-mysql -u civadmin -p civi < db/migrations/0002_version_cost_base.sql
-```
-
-Миграция `0001` накатывается только на пустую базу: она создаёт таблицы
-и заливает стандартный набор, повторно её запускать не нужно. Остальные
-миграции — обычные `ALTER`, их накатывают поверх существующих данных.
+Миграция `0001` накатывается только на пустую базу: она создаёт таблицы,
+заливает каталог и базовую версию деревьев, повторно её запускать не нужно.
+Если изменился сам каталог (а он лежит внутри `0001`), нужна переустановка
+базы — раздел 9.
 
 ## 9. Переустановка базы с нуля
 
@@ -411,7 +413,7 @@ git pull origin main
 grep -m1 "позиций каталога" db/migrations/0001_create_tech_tree_versions.sql
 ```
 
-Должно быть `567 позиций каталога`. Если `353` — `git pull` не прошёл;
+Должно быть `623 позиции каталога`. Если число меньше — `git pull` не прошёл;
 разберитесь с ним (см. раздел 8 про `core.fileMode`) и повторите.
 
 Резервная копия — на случай, если в базе всё-таки было нужное:
@@ -442,13 +444,14 @@ mysql -u civi -p civi < db/migrations/0001_create_tech_tree_versions.sql
 Проверка, что приехало именно новое содержимое:
 
 ```bash
-mysql -u civi -p civi -e "SELECT (SELECT COUNT(*) FROM technologies) AS tehnologiy, (SELECT COUNT(*) FROM branches) AS kategoriy, (SELECT COUNT(*) FROM eras) AS epoh, (SELECT COUNT(*) FROM technologies WHERE historical_note IS NOT NULL) AS so_spravkoy;"
+mysql -u civi -p civi -e "SELECT (SELECT COUNT(*) FROM technologies) AS tehnologiy, (SELECT COUNT(*) FROM branches) AS kategoriy, (SELECT COUNT(*) FROM eras) AS epoh, (SELECT COUNT(*) FROM technologies WHERE historical_note IS NOT NULL) AS so_spravkoy, (SELECT COUNT(*) FROM tree_version_nodes) AS kartochek;"
 ```
 
-Ожидаем `567 / 41 / 15 / 37`. Если технологий 353, а категорий 31 — накатилась
-старая миграция, то есть `git pull` не был выполнен до наката.
+Ожидаем `623 / 41 / 15 / 623 / 623`. Если чисел меньше — накатилась старая
+миграция, то есть `git pull` не был выполнен до наката.
 
-После этого зайдите в админку и сгенерируйте версию заново: старые версии
+Генерировать ничего не нужно: версия «Базовые деревья» приезжает вместе
+с миграцией и открывается сразу. Свои прежние версии, если они были,
 удалены вместе с базой.
 
 ## Диагностика
@@ -469,5 +472,6 @@ mysql -u civi -p civi -e "SELECT (SELECT COUNT(*) FROM technologies) AS tehnolog
 | `ln: File exists` | ссылка уже создана прошлой попыткой, в том числе битой. Используйте `ln -sfn` — она заменяет ссылку на месте |
 | Ошибка 500 сразу после установки | чаще всего `.htaccess` с директивой `php_flag` при PHP-FPM. В комплекте такие директивы обёрнуты в `IfModule`; проверьте свои `.htaccess` выше по дереву |
 | `Table 'technologies' already exists` при накате | база не пуста, нужна переустановка — раздел 9 |
-| В админке 353 технологии вместо 567 | миграцию накатили до `git pull`, а сам `git pull` не прошёл. Проверьте `git log --oneline -1` и раздел 8 про `core.fileMode` |
+| В админке технологий меньше 623 | миграцию накатили до `git pull`, а сам `git pull` не прошёл. Проверьте `git log --oneline -1` и раздел 8 про `core.fileMode` |
+| После обновления пусто, версии «Базовые деревья» нет | старая база с прежним каталогом. Нужна переустановка — раздел 9 |
 | `git pull` пишет про local changes, хотя ничего не правили | делали `chmod -R 755` на репозиторий; выполните `git config core.fileMode false` |

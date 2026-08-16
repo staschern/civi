@@ -164,7 +164,8 @@ try {
                     !empty($_POST['tree_id']) ? (int) $_POST['tree_id'] : null,
                     !empty($_POST['version_era_id']) ? (int) $_POST['version_era_id'] : null,
                     isset($_POST['column']) && $_POST['column'] !== '' ? (int) $_POST['column'] : null,
-                    isset($_POST['average']) && $_POST['average'] !== '' ? (int) $_POST['average'] : null
+                    isset($_POST['average']) && $_POST['average'] !== '' ? (int) $_POST['average'] : null,
+                    isset($_POST['step']) && $_POST['step'] !== '' ? (float) $_POST['step'] : null
                 );
                 echo json_encode(['ok' => true] + $result, JSON_UNESCAPED_UNICODE);
             } catch (Civi\UserError $e) {

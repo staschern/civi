@@ -14,26 +14,50 @@ final class VersionRepository
     /**
      * Стоимость технологии определяется её столбцом.
      *
-     * Отсчёт начинается со 130 за технологию первого столбца.
-     * Каждый следующий столбец дороже предыдущего в COST_STEP раз, внутри
-     * столбца стоимости расходятся на ±COST_JITTER. Разброс подобран так,
-     * чтобы диапазоны соседних столбцов не пересекались: самая дорогая
-     * технология столбца (1 + 0.15 = 1.15 базы) дешевле самой дешёвой
-     * технологии следующего (1.5 × 0.85 = 1.275 базы).
+     * Отсчёт начинается с COST_BASE за технологию первого столбца.
+     * Каждый следующий столбец дороже предыдущего в cost_step раз, внутри
+     * столбца стоимости расходятся на ±разброс. И база, и шаг хранятся
+     * у версии, поэтому их можно менять прямо на доске; здесь только
+     * значения по умолчанию для новой версии.
+     *
+     * Разброс не постоянный, а считается от шага (см. jitterFor): диапазоны
+     * соседних столбцов не должны пересекаться, иначе технологии перестанут
+     * читаться по цене. Чем меньше шаг, тем уже разброс.
      */
-    private const COST_BASE = 130;
-    private const COST_STEP = 1.5;
+    private const COST_BASE = 60;
+    private const COST_STEP = 1.3;
     private const COST_JITTER = 0.15;
+    private const COST_STEP_MIN = 1.05;
+    private const COST_STEP_MAX = 4.0;
+
+    /**
+     * Наибольший разброс внутри столбца, при котором соседние столбцы
+     * ещё не налезают друг на друга.
+     *
+     * Самая дорогая технология столбца стоит (1 + j) базы, самая дешёвая
+     * технология следующего — step × (1 − j). Условие step(1−j) > 1+j даёт
+     * j < (step − 1) / (step + 1); берём девять десятых от предела, чтобы
+     * между столбцами оставался зазор, и не превышаем COST_JITTER.
+     */
+    private static function jitterFor(float $step): float
+    {
+        return min(self::COST_JITTER, ($step - 1) / ($step + 1) * 0.9);
+    }
 
     /**
      * Потолок стоимости одной технологии.
      *
-     * Коэффициент 1.5 растёт быстро: к сороковому столбцу выходит уже
-     * больше миллиарда. Столбцов может стать больше (эпохи растут при
-     * ручной правке связей), а в базе стоимость — INT UNSIGNED, поэтому
-     * упираемся в круглый потолок с запасом до предела типа.
+     * Коэффициент столбца растёт в степени, а столбцов в дереве больше
+     * шестидесяти: при шаге 1.5 последний столбец стоит уже десятки
+     * триллионов. Стоимость хранится в BIGINT UNSIGNED, но упираемся
+     * в круглый потолок заметно раньше предела типа — чтобы переполнение
+     * не случилось даже после того, как эпохи вырастут столбцами.
+     *
+     * Если пересчёт упёрся в потолок, recalcCosts() возвращает число
+     * таких карточек, и админка предупреждает: при этом коэффициенте
+     * дальние столбцы перестают различаться по цене.
      */
-    public const COST_MAX = 2000000000;
+    public const COST_MAX = 1000000000000000;
 
     /**
      * Потолок числа столбцов внутри одной эпохи.
@@ -116,13 +140,13 @@ final class VersionRepository
             $versionId = $db->insert(
                 'INSERT INTO tree_versions
                     (name, seed_code, seed_numbers, seed_science, seed_culture, seed_layout,
-                     cost_base, parent_version_id)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                     cost_base, cost_step, parent_version_id)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [
                     ($name === null || $name === '') ? null : $name,
                     $seedCode,
                     json_encode(array_map('intval', $seed)),
-                    $seed[0], $seed[1], $seed[2], self::COST_BASE, $parentId,
+                    $seed[0], $seed[1], $seed[2], self::COST_BASE, self::COST_STEP, $parentId,
                 ]
             );
 
@@ -215,6 +239,7 @@ final class VersionRepository
 
                 $costRng = new Rng($treeSeed ^ 0x5EED);
                 $costBase = self::COST_BASE;
+                $costStep = self::COST_STEP;
                 foreach ($layout['nodes'] as $techId => $n) {
                     $nodeIdByTech[$techId] = $db->insert(
                         'INSERT INTO tree_version_nodes
@@ -224,7 +249,8 @@ final class VersionRepository
                         [
                             $versionId, $tree['id'], $techId, $versionEraId[$n['era_id']],
                             $n['lane'], $n['row'], $n['global_column'],
-                            $baseCost[$techId] ?? self::costFor((int) $n['global_column'], $costRng, $costBase),
+                            $baseCost[$techId]
+                                ?? self::costFor((int) $n['global_column'], $costRng, $costBase, $costStep),
                             $n['relaxed'] ? 1 : 0,
                         ]
                     );
@@ -259,7 +285,8 @@ final class VersionRepository
         }
 
         $eras = $this->db->all(
-            'SELECT tve.id, tve.era_id, tve.position, COALESCE(tve.name_override, e.name) AS name
+            'SELECT tve.id, tve.era_id, tve.position, e.period,
+                    COALESCE(tve.name_override, e.name) AS name
                FROM tree_version_eras tve JOIN eras e ON e.id = tve.era_id
               WHERE tve.version_id = ? ORDER BY tve.position, tve.id',
             [$versionId]
@@ -419,22 +446,32 @@ final class VersionRepository
      * любая технология столбца дороже любой технологии столбца левее
      * и дешевле любой технологии столбца правее.
      */
-    public static function costFor(int $globalColumn, Rng $rng, ?int $costBase = null): int
-    {
-        $base = ($costBase ?? self::COST_BASE) * pow(self::COST_STEP, $globalColumn);
-        $jitter = 1.0 + (($rng->next() * 2) - 1) * self::COST_JITTER;
+    public static function costFor(
+        int $globalColumn,
+        Rng $rng,
+        ?int $costBase = null,
+        ?float $costStep = null
+    ): int {
+        $step = $costStep ?? self::COST_STEP;
+        $base = ($costBase ?? self::COST_BASE) * pow($step, $globalColumn);
+        $jitter = 1.0 + (($rng->next() * 2) - 1) * self::jitterFor($step);
 
         return max(1, min(self::COST_MAX, (int) round($base * $jitter)));
     }
 
     /** Границы диапазона стоимостей столбца — для подсказок в интерфейсе. */
-    public static function costRange(int $globalColumn, ?int $costBase = null): array
-    {
-        $base = ($costBase ?? self::COST_BASE) * pow(self::COST_STEP, $globalColumn);
+    public static function costRange(
+        int $globalColumn,
+        ?int $costBase = null,
+        ?float $costStep = null
+    ): array {
+        $step = $costStep ?? self::COST_STEP;
+        $base = ($costBase ?? self::COST_BASE) * pow($step, $globalColumn);
+        $jitter = self::jitterFor($step);
 
         return [
-            min(self::COST_MAX, (int) round($base * (1 - self::COST_JITTER))),
-            min(self::COST_MAX, (int) round($base * (1 + self::COST_JITTER))),
+            min(self::COST_MAX, (int) round($base * (1 - $jitter))),
+            min(self::COST_MAX, (int) round($base * (1 + $jitter))),
         ];
     }
 
@@ -876,14 +913,15 @@ final class VersionRepository
     /**
      * Пересчёт стоимостей по правилу столбцов.
      *
-     * Среднее столбца = cost_base × 1.5^номер, внутри столбца стоимости
-     * расходятся на ±15%. Область задаётся: вся версия, одна эпоха
-     * или один столбец.
+     * Среднее столбца = cost_base × cost_step^номер, внутри столбца
+     * стоимости расходятся на ±15%. Область задаётся: вся версия,
+     * одна эпоха или один столбец.
      *
-     * Если передан $newAverage, он трактуется как желаемое среднее для
-     * столбца $scopeColumn: база версии пересчитывается так, чтобы
-     * средние во всех остальных столбцах поехали за ним по тому же
-     * коэффициенту 1.5.
+     * Если передан $newStep, он становится новым коэффициентом версии —
+     * средние всех столбцов едут следом. Если передан $newAverage, он
+     * трактуется как желаемое среднее для столбца $column: база версии
+     * пересчитывается так, чтобы средние в остальных столбцах поехали
+     * за ним по тому же коэффициенту.
      *
      * @param string $scope 'version' | 'era' | 'column'
      */
@@ -893,16 +931,39 @@ final class VersionRepository
         ?int $treeId = null,
         ?int $versionEraId = null,
         ?int $column = null,
-        ?int $newAverage = null
+        ?int $newAverage = null,
+        ?float $newStep = null
     ): array {
         return $this->db->transaction(function (Db $db) use (
-            $versionId, $scope, $treeId, $versionEraId, $column, $newAverage
+            $versionId, $scope, $treeId, $versionEraId, $column, $newAverage, $newStep
         ) {
+            // шаг меняем первым: от него зависит пересчёт базы под новое среднее
+            if ($newStep !== null) {
+                if ($newStep < self::COST_STEP_MIN || $newStep > self::COST_STEP_MAX) {
+                    throw new UserError(sprintf(
+                        'Коэффициент должен быть от %s до %s',
+                        rtrim(rtrim(number_format(self::COST_STEP_MIN, 2, '.', ''), '0'), '.'),
+                        rtrim(rtrim(number_format(self::COST_STEP_MAX, 2, '.', ''), '0'), '.')
+                    ));
+                }
+                $db->run('UPDATE tree_versions SET cost_step = ? WHERE id = ?',
+                    [round($newStep, 2), $versionId]);
+            }
+
+            $version = $db->one('SELECT cost_base, cost_step FROM tree_versions WHERE id = ?', [$versionId]);
+            if ($version === null) {
+                throw new UserError('Версия не найдена');
+            }
+            $costStep = (float) $version['cost_step'];
+            if ($costStep < self::COST_STEP_MIN) {
+                $costStep = self::COST_STEP;
+            }
+
             if ($newAverage !== null) {
                 if ($newAverage < 1) {
                     throw new UserError('Среднее должно быть положительным числом');
                 }
-                $base = (int) round($newAverage / pow(self::COST_STEP, max(0, (int) $column)));
+                $base = (int) round($newAverage / pow($costStep, max(0, (int) $column)));
                 $db->run('UPDATE tree_versions SET cost_base = ? WHERE id = ?', [max(1, $base), $versionId]);
             }
 
@@ -927,8 +988,12 @@ final class VersionRepository
             // менять стоимости в остальных
             $rng = new Rng(($versionId * 7919) ^ (int) $costBase ^ (($column ?? -1) + 13));
             $costs = [];
+            $capped = 0;
             foreach ($db->all($sql, $params) as $row) {
-                $cost = self::costFor((int) $row['global_column'], $rng, $costBase);
+                $cost = self::costFor((int) $row['global_column'], $rng, $costBase, $costStep);
+                if ($cost >= self::COST_MAX) {
+                    $capped++;
+                }
                 $db->run('UPDATE tree_version_nodes SET cost = ? WHERE id = ?', [$cost, (int) $row['id']]);
                 $costs[(int) $row['id']] = $cost;
             }
@@ -948,7 +1013,12 @@ final class VersionRepository
                 }
             }
 
-            return ['cost_base' => $costBase, 'costs' => $costs];
+            return [
+                'cost_base' => $costBase,
+                'cost_step' => $costStep,
+                'capped' => $capped,
+                'costs' => $costs,
+            ];
         });
     }
 
@@ -1018,7 +1088,9 @@ final class VersionRepository
                     (SELECT COUNT(*) FROM tree_version_links l
                        JOIN tree_version_nodes s ON s.id = l.from_node_id
                       WHERE l.version_id = n.version_id AND l.to_node_id = n.id
-                        AND s.global_column = n.global_column - 1) AS in_prev,
+                        -- global_column беззнаковый: у нулевого столбца
+                        -- «минус один» без приведения выходит за диапазон
+                        AND s.global_column = CAST(n.global_column AS SIGNED) - 1) AS in_prev,
                     (SELECT COUNT(*) FROM tree_version_links l
                        JOIN tree_version_nodes s ON s.id = l.from_node_id
                       WHERE l.version_id = n.version_id AND l.to_node_id = n.id

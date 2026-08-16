@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img">
-  <title>alliance</title>
+  <title>oral_teaching</title>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#123a52"/><stop offset="1" stop-color="#3f96b8"/>
+      <stop offset="0" stop-color="#123f42"/><stop offset="1" stop-color="#3fa89c"/>
     </linearGradient>
     <radialGradient id="vig" cx="0.5" cy="0.42" r="0.75">
       <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
@@ -10,6 +10,6 @@
     </radialGradient>
   </defs>
   <rect width="128" height="128" fill="url(#bg)"/>
-  <path d="M0 128V96q32-10 64 0t64 0V128z" fill="#1b5478"/><circle cx="44" cy="44" r="15" fill="#f2e8d5"/><circle cx="84" cy="44" r="15" fill="#ffd166"/><path d="M14 104c0-18 12-30 30-30s30 12 30 30z" fill="#f2e8d5"/><path d="M54 104c0-18 12-30 30-30s30 12 30 30z" fill="#ffd166"/>
+  <path d="M0 128V96q32-10 64 0t64 0V128z" fill="#1b5a5c"/><polygon points="64,22 116,44 64,66 12,44" fill="#e9f7f5"/><path d="M34 54v22c0 10 14 18 30 18s30-8 30-18V54L64 70z" fill="#ffd166"/>
   <rect width="128" height="128" fill="url(#vig)"/>
 </svg>

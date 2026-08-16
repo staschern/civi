@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img">
-  <title>division_labor</title>
+  <title>rafts</title>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#2e3a2a"/><stop offset="1" stop-color="#6f8a52"/>
+      <stop offset="0" stop-color="#123a52"/><stop offset="1" stop-color="#3f96b8"/>
     </linearGradient>
     <radialGradient id="vig" cx="0.5" cy="0.42" r="0.75">
       <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
@@ -10,6 +10,6 @@
     </radialGradient>
   </defs>
   <rect width="128" height="128" fill="url(#bg)"/>
-  <path d="M0 128V96q32-10 64 0t64 0V128z" fill="#39482f"/><circle cx="42" cy="40" r="12" fill="#f2e8d5"/><circle cx="86" cy="40" r="12" fill="#f2e8d5"/><path d="M20 104c0-18 10-28 22-28s22 10 22 28z" fill="#c58a4e"/><path d="M64 104c0-18 10-28 22-28s22 10 22 28z" fill="#8fb14e"/>
+  <path d="M0 96q32-12 64 0t64 0V128H0z" fill="#1d6b8f"/><polygon points="64,18 64,78 100,66" fill="#f2e8d5"/><path d="M64 16v72" fill="none" stroke="#8a5a33" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 86h92l-14 20H32z" fill="#8a5a33"/><circle cx="24" cy="28" r="11" fill="#ffd166"/>
   <rect width="128" height="128" fill="url(#vig)"/>
 </svg>

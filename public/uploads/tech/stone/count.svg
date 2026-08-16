@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img">
-  <title>teaching</title>
+  <title>count</title>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#123f42"/><stop offset="1" stop-color="#3fa89c"/>
+      <stop offset="0" stop-color="#2e2a44"/><stop offset="1" stop-color="#6b5f9e"/>
     </linearGradient>
     <radialGradient id="vig" cx="0.5" cy="0.42" r="0.75">
       <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
@@ -10,6 +10,6 @@
     </radialGradient>
   </defs>
   <rect width="128" height="128" fill="url(#bg)"/>
-  <path d="M0 128V96q32-10 64 0t64 0V128z" fill="#1b5a5c"/><polygon points="64,22 116,44 64,66 12,44" fill="#e9f7f5"/><path d="M34 54v22c0 10 14 18 30 18s30-8 30-18V54L64 70z" fill="#ffd166"/>
+  <path d="M0 128V96q32-10 64 0t64 0V128z" fill="#3a3454"/><rect x="24" y="26" width="22" height="76" rx="5" fill="#d8d2c6"/><path d="M58 36v56M72 36v56M86 36v56M100 36v56" fill="none" stroke="#cbb7ff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M52 64h54" fill="none" stroke="#8f7fd6" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
   <rect width="128" height="128" fill="url(#vig)"/>
 </svg>

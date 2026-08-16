@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img">
+  <title>sling</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a2f22"/><stop offset="1" stop-color="#96794a"/>
+    </linearGradient>
+    <radialGradient id="vig" cx="0.5" cy="0.42" r="0.75">
+      <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.35"/>
+    </radialGradient>
+  </defs>
+  <rect width="128" height="128" fill="url(#bg)"/>
+  <path d="M0 128V96q32-10 64 0t64 0V128z" fill="#463a29"/><path d="M44 26q22 42 0 70" fill="none" stroke="#d8c9a8" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path d="M84 26q-22 42 0 70" fill="none" stroke="#d8c9a8" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path d="M44 92q20 18 40 0q-20 10-40 0z" fill="#8b6a3c"/><circle cx="64" cy="96" r="9" fill="#b9b2a6"/><circle cx="102" cy="44" r="7" fill="#b9b2a6" opacity=".8"/>
+  <rect width="128" height="128" fill="url(#vig)"/>
+</svg>

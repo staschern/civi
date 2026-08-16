@@ -7,9 +7,10 @@
 --      каталог. Живёт вне версий, помечен флагом is_standard.
 --      Стандартный набор = всё, у чего is_standard = 1.
 --    * стоимость: base_cost в каталоге — ручная, cost у карточки версии —
---      рассчитанная. Столбец правее дороже предыдущего примерно в полтора
---      раза, внутри столбца стоимости расходятся случайно, но так, что
---      диапазоны соседних столбцов не пересекаются.
+--      рассчитанная. Средняя стоимость первого столбца версии — cost_base,
+--      каждый следующий столбец дороже предыдущего в cost_step раз (по
+--      умолчанию 60 и 1.3). Внутри столбца стоимости расходятся случайно,
+--      но так, что диапазоны соседних столбцов не пересекаются.
 --    * effect_types / technology_effects — что технология добавляет в игру
 --      (ресурс, юнит, уровень здания, концепция, карточка, ускорение
 --      добычи…). Свойство технологии, общее для всех версий.
@@ -58,6 +59,7 @@ CREATE TABLE eras (
   id               SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT,
   code             VARCHAR(64)       NOT NULL COMMENT 'stone, bronze, antiquity, …',
   name             VARCHAR(190)      NOT NULL,
+  period           VARCHAR(64)           NULL COMMENT 'исторические рамки: «~3300–1200 до н. э.»',
   default_position SMALLINT UNSIGNED NOT NULL COMMENT 'место в стандартной сетке, 1..N',
   is_standard      TINYINT(1)        NOT NULL DEFAULT 1 COMMENT '1 — входит в стандартный набор',
   created_at       TIMESTAMP         NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -101,7 +103,7 @@ CREATE TABLE technologies (
   branch_id       SMALLINT UNSIGNED NOT NULL COMMENT 'категория технологии',
   default_era_id  SMALLINT UNSIGNED NOT NULL COMMENT 'эпоха по умолчанию при генерации',
   is_standard     TINYINT(1)        NOT NULL DEFAULT 1 COMMENT '1 — входит в стандартный набор',
-  base_cost       INT UNSIGNED          NULL COMMENT 'ручная стоимость; пусто — считает генератор по столбцу',
+  base_cost       BIGINT UNSIGNED       NULL COMMENT 'ручная стоимость; пусто — считает генератор по столбцу',
   image_path      VARCHAR(255)          NULL COMMENT 'путь к картинке относительно веб-корня',
   description     TEXT                  NULL COMMENT 'описание технологии для игрока',
   historical_note TEXT                  NULL COMMENT 'историческая справка',
@@ -203,6 +205,12 @@ CREATE TABLE tree_versions (
   seed_culture      BIGINT UNSIGNED    NOT NULL COMMENT 'семя раскладки дерева соц. концепций',
   seed_layout       BIGINT UNSIGNED    NOT NULL COMMENT 'семя разбиения эпох на столбцы',
   generator_version VARCHAR(32)        NOT NULL DEFAULT '1' COMMENT 'версия алгоритма генерации',
+  -- стоимость технологии считается от столбца: средняя стоимость первого
+  -- столбца — cost_base, каждый следующий дороже предыдущего в cost_step раз
+  cost_base         INT UNSIGNED       NOT NULL DEFAULT 60
+                      COMMENT 'средняя стоимость технологии первого столбца',
+  cost_step         DECIMAL(4,2)       NOT NULL DEFAULT 1.30
+                      COMMENT 'во сколько раз следующий столбец дороже предыдущего',
   status            ENUM('generated','edited','archived') NOT NULL DEFAULT 'generated',
   parent_version_id INT UNSIGNED           NULL COMMENT 'от какой версии отпочковались',
   notes             TEXT                   NULL,
@@ -269,7 +277,7 @@ CREATE TABLE tree_version_nodes (
   lane           SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT 'столбец внутри эпохи, 0..lanes-1',
   row_index      SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT 'место внутри столбца, сверху вниз',
   global_column  SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT 'сквозной номер столбца, 0..M',
-  cost           INT UNSIGNED      NOT NULL DEFAULT 0
+  cost           BIGINT UNSIGNED   NOT NULL DEFAULT 0
     COMMENT 'стоимость на этой доске: растёт от столбца к столбцу',
   source         ENUM('standard','manual') NOT NULL DEFAULT 'standard',
   is_relaxed     TINYINT(1)        NOT NULL DEFAULT 0

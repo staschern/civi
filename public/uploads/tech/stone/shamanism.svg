@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img">
-  <title>boat</title>
+  <title>shamanism</title>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#123a52"/><stop offset="1" stop-color="#3f96b8"/>
+      <stop offset="0" stop-color="#1e2444"/><stop offset="1" stop-color="#5a63a8"/>
     </linearGradient>
     <radialGradient id="vig" cx="0.5" cy="0.42" r="0.75">
       <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
@@ -10,6 +10,6 @@
     </radialGradient>
   </defs>
   <rect width="128" height="128" fill="url(#bg)"/>
-  <path d="M0 96q32-12 64 0t64 0V128H0z" fill="#1d6b8f"/><polygon points="64,18 64,78 100,66" fill="#f2e8d5"/><path d="M64 16v72" fill="none" stroke="#8a5a33" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 86h92l-14 20H32z" fill="#8a5a33"/><circle cx="24" cy="28" r="11" fill="#ffd166"/>
+  <path d="M0 128V96q32-10 64 0t64 0V128z" fill="#282e56"/><circle cx="64" cy="40" r="14" fill="#ffe066"/><path d="M28 104c6-20 18-30 36-30s30 10 36 30z" fill="#8f7fd6"/><path d="M24 30l10 8M104 30l-10 8" fill="none" stroke="#ffe066" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
   <rect width="128" height="128" fill="url(#vig)"/>
 </svg>

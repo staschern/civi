@@ -1,15 +1,23 @@
 #!/usr/bin/env node
 /*
- * Сборка миграции 0001 из трёх источников:
- *   db/schema/0001_schema.sql      — схема, правится руками;
- *   db/catalog/categories.txt      — категории технологий;
- *   db/catalog/technologies.txt    — сам каталог, размеченный по эпохам.
+ * Сборка миграции 0001 из источников каталога:
+ *   db/schema/0001_schema.sql   — схема, правится руками;
+ *   db/catalog/eras.txt         — эпохи и их исторические рамки;
+ *   db/catalog/categories.txt   — категории технологий с цветами;
+ *   db/catalog/trees.json       — сами деревья: технологии с описанием
+ *                                 и исторической справкой, авторские связи
+ *                                 и готовая раскладка по столбцам.
  *
  * Запуск из корня репозитория:
  *   node tools/generate-migration.js
  *
  * Результат перезаписывает db/migrations/0001_create_tech_tree_versions.sql.
  * Руками этот файл не правим — правим источники и пересобираем.
+ *
+ * Кроме каталога миграция кладёт в базу готовую версию №1 — ту самую пару
+ * деревьев из db/catalog/trees.json со всеми связями, столбцами и уже
+ * посчитанными стоимостями. Поэтому сразу после наката админке есть
+ * что показать, генерировать ничего не нужно.
  */
 const fs = require('fs');
 const path = require('path');
@@ -19,28 +27,30 @@ const catalogDir = path.join(root, 'db', 'catalog');
 const schemaPath = path.join(root, 'db', 'schema', '0001_schema.sql');
 const outPath = path.join(root, 'db', 'migrations', '0001_create_tech_tree_versions.sql');
 
-const ERAS = [
-  ['stone', 'Каменный век'],
-  ['bronze', 'Бронзовый век'],
-  ['antiquity', 'Античность'],
-  ['early_medieval', 'Раннее Средневековье'],
-  ['high_medieval', 'Высокое Средневековье'],
-  ['exploration', 'Эпоха открытий'],
-  ['renaissance', 'Возрождение'],
-  ['enlightenment', 'Просвещение'],
-  ['industrial_rev', 'Промышленная революция'],
-  ['industrial', 'Индустриальная эра'],
-  ['modern', 'Новое время'],
-  ['atomic', 'Атомная эра'],
-  ['information', 'Информационная эра'],
-  ['digital', 'Цифровая эра'],
-  ['future', 'Будущее'],
-];
-
 const TREES = [
   { id: 1, code: 'science', name: 'Дерево технологий', points: 'Наука', boost: 'Озарения' },
   { id: 2, code: 'culture', name: 'Дерево социальных концепций', points: 'Культура', boost: 'Вдохновения' },
 ];
+
+/* Стоимость технологии определяется её столбцом: средняя стоимость первого
+   столбца — COST_BASE, каждый следующий дороже в COST_STEP раз, внутри
+   столбца стоимости расходятся на ±jitter. Разброс считается от шага так,
+   чтобы диапазоны соседних столбцов не пересекались — та же формула,
+   что в VersionRepository::jitterFor(). */
+const COST_BASE = 60;
+const COST_STEP = 1.3;
+const COST_JITTER = 0.15;
+const COST_MAX = 1000000000000000;
+const jitterFor = step => Math.min(COST_JITTER, (step - 1) / (step + 1) * 0.9);
+
+/* Семя версии №1. Раскладка у неё авторская, а не считанная по семени,
+   но поля семени в схеме обязательные — берём приметное. */
+const BASE_VERSION = {
+  id: 1,
+  name: 'Базовые деревья',
+  seedCode: '0001-0001-0001',
+  seedNumbers: [1, 1, 1],
+};
 
 const EFFECT_TYPES = [
   { code: 'resource', name: 'Новый ресурс',
@@ -76,16 +86,29 @@ const rows = list => list.map(r => '  (' + r.join(', ') + ')').join(',\n');
 const readLines = f => fs.readFileSync(path.join(catalogDir, f), 'utf8')
   .split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
 
-/* Латинский код из русского названия. */
-const TRANSLIT = {
-  'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'e','ж':'zh','з':'z','и':'i','й':'i',
-  'к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ф':'f',
-  'х':'h','ц':'c','ч':'ch','ш':'sh','щ':'sch','ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya',
-};
-function slug(text){
-  const s = text.toLowerCase().split('').map(ch => TRANSLIT[ch] !== undefined ? TRANSLIT[ch] : ch).join('');
-  return s.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 70) || 'x';
+/* Тот же генератор псевдослучайных чисел, что в app/Rng.php: одно семя —
+   одни и те же стоимости, поэтому кнопка «пересчитать» в админке даёт
+   ровно то, что уже лежит в миграции. */
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1) >>> 0;
+    t = (t ^ (t + Math.imul(t ^ (t >>> 7), t | 61))) >>> 0;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
+const costFor = (column, rnd) => Math.max(1, Math.min(COST_MAX, Math.round(
+  COST_BASE * Math.pow(COST_STEP, column) * (1 + (rnd() * 2 - 1) * jitterFor(COST_STEP))
+)));
+
+// ---- эпохи -----------------------------------------------------------
+const eras = readLines('eras.txt').map((line, i) => {
+  const [code, name, period] = line.split('|');
+  return { id: i + 1, code, name, period, position: i + 1 };
+});
+const eraId = new Map(eras.map(e => [e.code, e.id]));
 
 // ---- категории -------------------------------------------------------
 const treeIdByCode = Object.fromEntries(TREES.map(t => [t.code, t.id]));
@@ -99,41 +122,70 @@ readLines('categories.txt').forEach(line => {
   branchId.set(tree + ':' + code, id);
 });
 
-// ---- эпохи -----------------------------------------------------------
-const eraId = new Map(ERAS.map(([code], i) => [code, i + 1]));
-
-// ---- технологии ------------------------------------------------------
-const notes = loadNotes();
+// ---- технологии и авторские связи ------------------------------------
+const catalog = JSON.parse(fs.readFileSync(path.join(catalogDir, 'trees.json'), 'utf8'));
 const techs = [];
-const seenCode = new Map();
-readLines('technologies.txt').forEach(line => {
-  const [era, tree, category, name] = line.split('|');
-  if (!eraId.has(era)) throw new Error('неизвестная эпоха ' + era + ' у «' + name + '»');
-  if (!branchId.has(tree + ':' + category)) throw new Error('нет категории ' + tree + '/' + category);
+const techId = new Map();       // 'science:tools' => id технологии
+const prereqs = [];             // [id технологии, id основы]
+const board = [];               // карточки версии №1
+const lanes = [];               // сколько столбцов у эпохи в каждом дереве
 
-  let code = (tree === 'science' ? 't_' : 'c_') + slug(name);
-  if (seenCode.has(code)) throw new Error('повтор кода ' + code + ' («' + name + '»)');
-  seenCode.set(code, true);
+catalog.trees.forEach(tree => {
+  const treeId = treeIdByCode[tree.code];
+  if (!treeId) throw new Error('неизвестное дерево ' + tree.code);
 
-  const extra = notes[name] || {};
-  techs.push({
-    id: techs.length + 1,
-    tree: treeIdByCode[tree],
-    code, name,
-    branch: branchId.get(tree + ':' + category),
-    era: eraId.get(era),
-    image: extra.image,
-    description: extra.description,
-    historical_note: extra.historical_note,
+  // сквозная нумерация столбцов: смещение эпохи + столбец внутри эпохи
+  let offset = 0;
+  const firstColumn = {};
+  eras.forEach(era => {
+    const count = tree.lanes[era.code];
+    if (!count) throw new Error('нет числа столбцов у ' + tree.code + '/' + era.code);
+    firstColumn[era.code] = offset;
+    offset += count;
+    lanes.push({ tree: treeId, era: era.id, lanes: count });
+  });
+
+  tree.nodes.forEach(node => {
+    if (!eraId.has(node.era)) throw new Error('неизвестная эпоха ' + node.era + ' у ' + node.code);
+    if (!branchId.has(tree.code + ':' + node.category)) {
+      throw new Error('нет категории ' + tree.code + '/' + node.category);
+    }
+    const code = (tree.code === 'science' ? 't_' : 'c_') + node.code;
+    if (techId.has(tree.code + ':' + node.code)) throw new Error('повтор кода ' + code);
+
+    const id = techs.length + 1;
+    techId.set(tree.code + ':' + node.code, id);
+    techs.push({
+      id, tree: treeId, code, name: node.name,
+      branch: branchId.get(tree.code + ':' + node.category),
+      era: eraId.get(node.era),
+      image: node.image,
+      description: node.description,
+      historical_note: node.historical_note,
+    });
+    board.push({
+      id: board.length + 1, tech: id, tree: treeId, era: eraId.get(node.era),
+      lane: node.lane, row: node.row, column: firstColumn[node.era] + node.lane,
+    });
   });
 });
 
-/* Описания и исторические справки лежат отдельным файлом: их немного
-   и заполняются они по мере проработки эпох. */
-function loadNotes(){
-  const file = path.join(catalogDir, 'notes.json');
-  return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
-}
+const nodeIdByTech = new Map(board.map(b => [b.tech, b.id]));
+const links = [];
+catalog.trees.forEach(tree => {
+  tree.links.forEach(([from, to]) => {
+    const fromId = techId.get(tree.code + ':' + from);
+    const toId = techId.get(tree.code + ':' + to);
+    if (!fromId || !toId) throw new Error('связь на несуществующую технологию: ' + from + ' → ' + to);
+    prereqs.push([toId, fromId]);
+    links.push([nodeIdByTech.get(fromId), nodeIdByTech.get(toId)]);
+  });
+});
+
+/* Стоимости версии №1 считаются тем же способом, что и кнопка «пересчитать
+   всё» в админке: семя собирается из номера версии и базовой стоимости. */
+const rnd = mulberry32(((BASE_VERSION.id * 7919) ^ COST_BASE ^ 12) >>> 0);
+board.forEach(card => { card.cost = costFor(card.column, rnd); });
 
 // ---- сборка ----------------------------------------------------------
 const out = [];
@@ -153,13 +205,13 @@ out.push('INSERT INTO trees (id, code, name, points_name, boost_name, position) 
 out.push(rows(TREES.map(t => [t.id, q(t.code), q(t.name), q(t.points), q(t.boost), t.id])) + ';');
 out.push('');
 
-out.push(`-- ${ERAS.length} эпох стандартной сетки`);
-out.push('INSERT INTO eras (id, code, name, default_position, is_standard) VALUES');
-out.push(rows(ERAS.map(([code, name], i) => [i + 1, q(code), q(name), i + 1, 1])) + ';');
+out.push(`-- ${eras.length} эпох стандартной сетки`);
+out.push('INSERT INTO eras (id, code, name, period, default_position, is_standard) VALUES');
+out.push(rows(eras.map(e => [e.id, q(e.code), q(e.name), nullable(e.period), e.position, 1])) + ';');
 out.push('');
 
-const sciCount = branches.filter(b => b.tree === 1).length;
-out.push(`-- ${branches.length} категорий (${sciCount} научных + ${branches.length - sciCount} культурных)`);
+const sciBranch = branches.filter(b => b.tree === 1).length;
+out.push(`-- ${branches.length} категорий (${sciBranch} научных + ${branches.length - sciBranch} культурных)`);
 out.push('INSERT INTO branches (id, tree_id, code, name, color, position) VALUES');
 out.push(rows(branches.map(b => [b.id, b.tree, q(b.code), q(b.name), q(b.color), b.position])) + ';');
 out.push('');
@@ -175,6 +227,12 @@ out.push(rows(techs.map(t => [
 ])) + ';');
 out.push('');
 
+out.push(`-- ${prereqs.length} авторских связей каталога: из них генератор собирает`);
+out.push('-- связи origin = \'standard\' в каждой новой версии');
+out.push('INSERT INTO technology_prereqs (technology_id, prereq_technology_id) VALUES');
+out.push(rows(prereqs) + ';');
+out.push('');
+
 out.push('-- Стартовые виды игровых эффектов. Список открытый: новые заводятся');
 out.push('-- через админку, миграция для этого не нужна.');
 out.push('INSERT INTO effect_types (id, code, name, description, payload_schema, position) VALUES');
@@ -183,9 +241,57 @@ out.push(rows(EFFECT_TYPES.map((e, i) => [
 ])) + ';');
 out.push('');
 
+out.push('-- =====================================================================');
+out.push('--  Версия деревьев по умолчанию.');
+out.push('--  Авторская раскладка из db/catalog/trees.json целиком: столбцы,');
+out.push('--  порядок карточек, связи и стоимости. Сразу после наката миграции');
+out.push('--  админка открывает её как есть.');
+out.push('-- =====================================================================');
+out.push('');
+
+out.push('INSERT INTO tree_versions');
+out.push('  (id, name, seed_code, seed_numbers, seed_science, seed_culture, seed_layout,');
+out.push('   generator_version, cost_base, cost_step, status, notes) VALUES');
+out.push(rows([[
+  BASE_VERSION.id, q(BASE_VERSION.name), q(BASE_VERSION.seedCode),
+  q(JSON.stringify(BASE_VERSION.seedNumbers)),
+  BASE_VERSION.seedNumbers[0], BASE_VERSION.seedNumbers[1], BASE_VERSION.seedNumbers[2],
+  q('1'), COST_BASE, COST_STEP, q('generated'),
+  q('Базовая пара деревьев из миграции: раскладка авторская, а не считанная по семени.'),
+]]) + ';');
+out.push('');
+
+out.push(`-- ${eras.length} эпох версии`);
+out.push('INSERT INTO tree_version_eras (id, version_id, era_id, position) VALUES');
+out.push(rows(eras.map(e => [e.id, BASE_VERSION.id, e.id, e.position])) + ';');
+out.push('');
+
+out.push('-- сколько столбцов у эпохи в каждом дереве');
+out.push('INSERT INTO tree_version_era_lanes (version_era_id, tree_id, lanes) VALUES');
+out.push(rows(lanes.map(l => [l.era, l.tree, l.lanes])) + ';');
+out.push('');
+
+out.push(`-- ${board.length} карточек на доске`);
+out.push('INSERT INTO tree_version_nodes');
+out.push('  (id, version_id, tree_id, technology_id, version_era_id, lane, row_index,');
+out.push('   global_column, cost, source, is_relaxed) VALUES');
+out.push(rows(board.map(c => [
+  c.id, BASE_VERSION.id, c.tree, c.tech, c.era, c.lane, c.row, c.column, c.cost,
+  q('standard'), 0,
+])) + ';');
+out.push('');
+
+out.push(`-- ${links.length} связей доски`);
+out.push('INSERT INTO tree_version_links (version_id, from_node_id, to_node_id, origin) VALUES');
+out.push(rows(links.map(([from, to]) => [BASE_VERSION.id, from, to, q('standard')])) + ';');
+out.push('');
+
 fs.writeFileSync(outPath, out.join('\n') + '\n', 'utf8');
 const withNotes = techs.filter(t => t.historical_note).length;
 const withImages = techs.filter(t => t.image).length;
-console.log(`эпох=${ERAS.length} категорий=${branches.length} технологий=${techs.length}`);
-console.log(`со справкой=${withNotes} с картинкой=${withImages}`);
+const columns = lanes.reduce((a, l) => a + (l.tree === 1 ? l.lanes : 0), 0);
+console.log(`эпох=${eras.length} категорий=${branches.length} технологий=${techs.length}`);
+console.log(`со справкой=${withNotes} с картинкой=${withImages} авторских связей=${prereqs.length}`);
+console.log(`версия по умолчанию: карточек=${board.length} связей=${links.length}`);
+console.log(`стоимости: база=${COST_BASE} шаг=${COST_STEP} столбцов науки=${columns}`);
 console.log('записано:', path.relative(root, outPath), fs.statSync(outPath).size, 'байт');
