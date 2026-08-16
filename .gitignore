@@ -13,3 +13,4 @@ package.json
 
 # временные файлы прогонов
 *.log
+__pycache__/
