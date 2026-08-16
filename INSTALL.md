@@ -419,8 +419,16 @@ grep -m1 "позиций каталога" db/migrations/0001_create_tech_tree_v
 Резервная копия — на случай, если в базе всё-таки было нужное:
 
 ```bash
-mysqldump -u civi -p --single-transaction civi > ~/civi-backup-$(date +%F).sql
+mysqldump -u civi -p --single-transaction --no-tablespaces civi > ~/civi-backup-$(date +%F).sql
 ```
+
+> Дальше в разделе пользователь базы назван `civi` — подставляйте своего,
+> того, под которым база заведена в панели.
+>
+> `--no-tablespaces` обязателен: без него `mysqldump` пытается прочитать
+> список табличных пространств сервера, а на это нужна привилегия `PROCESS`,
+> которой у пользователя сайта нет. Ошибка выглядит так:
+> `Access denied; you need (at least one of) the PROCESS privilege(s)`.
 
 Снос и создание пустой базы:
 
@@ -475,3 +483,5 @@ mysql -u civi -p civi -e "SELECT (SELECT COUNT(*) FROM technologies) AS tehnolog
 | В админке технологий меньше 623 | миграцию накатили до `git pull`, а сам `git pull` не прошёл. Проверьте `git log --oneline -1` и раздел 8 про `core.fileMode` |
 | После обновления пусто, версии «Базовые деревья» нет | старая база с прежним каталогом. Нужна переустановка — раздел 9 |
 | `git pull` пишет про local changes, хотя ничего не правили | делали `chmod -R 755` на репозиторий; выполните `git config core.fileMode false` |
+| `mysqldump: Access denied for user … (using password: YES)` | пользователь базы называется иначе, чем в примере. Посмотрите имя в панели или в `config/config.php` |
+| `mysqldump: you need … the PROCESS privilege` | добавьте `--no-tablespaces`: без него дамп лезет за списком табличных пространств сервера |
