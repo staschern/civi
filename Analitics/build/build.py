@@ -67,12 +67,28 @@ def validate(items, cats, tree_code):
                 problems.append("%s (%s) опирается на более позднюю %s (%s)"
                                 % (it["code"], it["era"], p, by_code[p]["era"]))
 
-    # ровно один корень на дерево: всё остальное на что-то опирается
-    roots = [i["code"] for i in items if not i["pre"]]
-    if len(roots) > 1:
-        problems.append("технологии без оснований (кроме корня): %s" % ", ".join(roots[1:]))
-    if not roots:
-        problems.append("нет ни одной технологии без оснований — вероятен цикл")
+    # Точек входа несколько: игрок с первого хода выбирает, куда пойти.
+    # Но лежать они обязаны в первой эпохе — иначе где-то в середине дерева
+    # окажется технология, ни на что не опирающаяся.
+    first_era = ERAS[0][0]
+    roots = [i for i in items if not i["pre"]]
+    if len(roots) < 2:
+        problems.append("точек входа меньше двух: %s"
+                        % (", ".join(r["code"] for r in roots) or "ни одной"))
+    for r in roots:
+        if r["era"] != first_era:
+            problems.append("%s (%s) не имеет оснований, хотя лежит не в первой эпохе"
+                            % (r["code"], r["era"]))
+
+    # Тупик — технология, на которую никто не опирается. В последней эпохе это
+    # нормально (дерево должно где-то кончаться), в остальных — повод проверить.
+    last_era = ERAS[-1][0]
+    used = set()
+    for i in items:
+        used.update(i["pre"])
+    dead = [i["code"] for i in items if i["code"] not in used and i["era"] != last_era]
+    if dead:
+        problems.append("тупики вне последней эпохи (%d): %s" % (len(dead), ", ".join(dead)))
 
     return problems
 
