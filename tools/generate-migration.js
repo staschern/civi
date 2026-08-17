@@ -33,15 +33,33 @@ const TREES = [
 ];
 
 /* Стоимость технологии определяется её столбцом: средняя стоимость первого
-   столбца — COST_BASE, каждый следующий дороже в COST_STEP раз, внутри
-   столбца стоимости расходятся на ±jitter. Разброс считается от шага так,
-   чтобы диапазоны соседних столбцов не пересекались — та же формула,
-   что в VersionRepository::jitterFor(). */
+   столбца — COST_BASE, следующий столбец внутри эпохи дороже в COST_STEP_LANE
+   раз, первый столбец новой эпохи — в COST_STEP_ERA раз. Внутри столбца
+   стоимости расходятся на ±jitter; разброс считается от меньшего из шагов
+   так, чтобы диапазоны соседних столбцов не пересекались — те же формулы,
+   что в VersionRepository::jitterFor() и columnFactors(). */
 const COST_BASE = 60;
-const COST_STEP = 1.3;
+const COST_STEP_LANE = 1.1;
+const COST_STEP_ERA = 1.5;
 const COST_JITTER = 0.15;
 const COST_MAX = 1000000000000000;
-const jitterFor = step => Math.min(COST_JITTER, (step - 1) / (step + 1) * 0.9);
+const jitterFor = (laneStep, eraStep) => {
+  const step = Math.min(laneStep, eraStep);
+  return Math.max(0, Math.min(COST_JITTER, (step - 1) / (step + 1) * 0.9));
+};
+const columnFactors = (laneCounts, laneStep, eraStep) => {
+  const factors = [];
+  let value = 1;
+  laneCounts.forEach((lanes, eraIndex) => {
+    for (let lane = 0; lane < Math.max(1, lanes); lane++) {
+      if (eraIndex === 0 && lane === 0) value = 1;
+      else if (lane === 0) value *= eraStep;
+      else value *= laneStep;
+      factors.push(value);
+    }
+  });
+  return factors;
+};
 
 /* Семя версии №1. Раскладка у неё авторская, а не считанная по семени,
    но поля семени в схеме обязательные — берём приметное. */
@@ -99,8 +117,9 @@ function mulberry32(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-const costFor = (column, rnd) => Math.max(1, Math.min(COST_MAX, Math.round(
-  COST_BASE * Math.pow(COST_STEP, column) * (1 + (rnd() * 2 - 1) * jitterFor(COST_STEP))
+const JITTER = jitterFor(COST_STEP_LANE, COST_STEP_ERA);
+const costFor = (factor, rnd) => Math.max(1, Math.min(COST_MAX, Math.round(
+  COST_BASE * factor * (1 + (rnd() * 2 - 1) * JITTER)
 )));
 
 // ---- эпохи -----------------------------------------------------------
@@ -129,6 +148,7 @@ const techId = new Map();       // 'science:tools' => id технологии
 const prereqs = [];             // [id технологии, id основы]
 const board = [];               // карточки версии №1
 const lanes = [];               // сколько столбцов у эпохи в каждом дереве
+const factorsByTree = {};       // множители стоимости по столбцам дерева
 
 catalog.trees.forEach(tree => {
   const treeId = treeIdByCode[tree.code];
@@ -137,13 +157,16 @@ catalog.trees.forEach(tree => {
   // сквозная нумерация столбцов: смещение эпохи + столбец внутри эпохи
   let offset = 0;
   const firstColumn = {};
+  const treeLanes = [];
   eras.forEach(era => {
     const count = tree.lanes[era.code];
     if (!count) throw new Error('нет числа столбцов у ' + tree.code + '/' + era.code);
     firstColumn[era.code] = offset;
     offset += count;
+    treeLanes.push(count);
     lanes.push({ tree: treeId, era: era.id, lanes: count });
   });
+  factorsByTree[treeId] = columnFactors(treeLanes, COST_STEP_LANE, COST_STEP_ERA);
 
   tree.nodes.forEach(node => {
     if (!eraId.has(node.era)) throw new Error('неизвестная эпоха ' + node.era + ' у ' + node.code);
@@ -185,7 +208,7 @@ catalog.trees.forEach(tree => {
 /* Стоимости версии №1 считаются тем же способом, что и кнопка «пересчитать
    всё» в админке: семя собирается из номера версии и базовой стоимости. */
 const rnd = mulberry32(((BASE_VERSION.id * 7919) ^ COST_BASE ^ 12) >>> 0);
-board.forEach(card => { card.cost = costFor(card.column, rnd); });
+board.forEach(card => { card.cost = costFor(factorsByTree[card.tree][card.column], rnd); });
 
 // ---- сборка ----------------------------------------------------------
 const out = [];
@@ -251,12 +274,12 @@ out.push('');
 
 out.push('INSERT INTO tree_versions');
 out.push('  (id, name, seed_code, seed_numbers, seed_science, seed_culture, seed_layout,');
-out.push('   generator_version, cost_base, cost_step, status, notes) VALUES');
+out.push('   generator_version, cost_base, cost_step_lane, cost_step_era, status, notes) VALUES');
 out.push(rows([[
   BASE_VERSION.id, q(BASE_VERSION.name), q(BASE_VERSION.seedCode),
   q(JSON.stringify(BASE_VERSION.seedNumbers)),
   BASE_VERSION.seedNumbers[0], BASE_VERSION.seedNumbers[1], BASE_VERSION.seedNumbers[2],
-  q('1'), COST_BASE, COST_STEP, q('generated'),
+  q('1'), COST_BASE, COST_STEP_LANE, COST_STEP_ERA, q('generated'),
   q('Базовая пара деревьев из миграции: раскладка авторская, а не считанная по семени.'),
 ]]) + ';');
 out.push('');
@@ -293,5 +316,7 @@ const columns = lanes.reduce((a, l) => a + (l.tree === 1 ? l.lanes : 0), 0);
 console.log(`эпох=${eras.length} категорий=${branches.length} технологий=${techs.length}`);
 console.log(`со справкой=${withNotes} с картинкой=${withImages} авторских связей=${prereqs.length}`);
 console.log(`версия по умолчанию: карточек=${board.length} связей=${links.length}`);
-console.log(`стоимости: база=${COST_BASE} шаг=${COST_STEP} столбцов науки=${columns}`);
+const dearest = board.reduce((a, c) => Math.max(a, c.cost), 0);
+console.log(`стоимости: база=${COST_BASE} внутри эпохи=${COST_STEP_LANE} между эпохами=${COST_STEP_ERA}`);
+console.log(`столбцов науки=${columns} разброс=±${(JITTER * 100).toFixed(1)}% дороже всех=${dearest}`);
 console.log('записано:', path.relative(root, outPath), fs.statSync(outPath).size, 'байт');

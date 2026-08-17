@@ -32,28 +32,71 @@
   var VERSION = Number(mount.dataset.version);
   var FOCUS = Number(mount.dataset.focus || 0);
   var COST_BASE = Number(mount.dataset.costBase || 60);
-  var COST_STEP = Number(mount.dataset.costStep || 1.3);
+  var COST_STEP_LANE = Number(mount.dataset.costStepLane || 1.1);
+  var COST_STEP_ERA = Number(mount.dataset.costStepEra || 1.5);
 
-  /** Среднее столбца: база версии, умноженная на коэффициент в степени номера. */
-  // тот же потолок, что и на сервере (VersionRepository::COST_MAX):
-  // коэффициент в степени растёт быстро, а столбцов в дереве больше шестидесяти
+  // тот же потолок, что и на сервере (VersionRepository::COST_MAX)
   var COST_MAX = 1000000000000000;
-  function columnAverage(col) {
-    return Math.min(COST_MAX, Math.round(COST_BASE * Math.pow(COST_STEP, col)));
+
+  /* Множители стоимости по столбцам дерева: внутри эпохи цена растёт
+     на коэффициент столбца, на границе эпохи — на коэффициент эпохи.
+     Та же формула, что в VersionRepository::columnFactors(). */
+  function factorsFor(tree) {
+    var factors = [];
+    var value = 1;
+    tree.eras.forEach(function (era, eraIndex) {
+      for (var lane = 0; lane < era.lanes; lane++) {
+        if (eraIndex === 0 && lane === 0) value = 1;
+        else if (lane === 0) value *= COST_STEP_ERA;
+        else value *= COST_STEP_LANE;
+        factors.push(value);
+      }
+    });
+    return factors;
   }
-  function money(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
+
+  /** Среднее столбца дерева: база версии, умноженная на множитель столбца. */
+  function columnAverage(tree, col) {
+    var factors = factorsFor(tree);
+    return Math.min(COST_MAX, Math.round(COST_BASE * (factors[col] || 1)));
+  }
+
+  /* Числа разбиваем по три знака неразрывным пробелом — иначе длинные
+     стоимости не читаются, а обычный пробел рвёт число по переносу. */
+  function money(n) {
+    return String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0');
+  }
+  /** Разбор числа из поля, куда его вывели с пробелами. */
+  function unmoney(text) {
+    return Number(String(text).replace(/[\s\u00a0]/g, '').replace(',', '.'));
+  }
 
   /* Режим правки связей: {node: id, side: 'out'|'in'}.
      'out' — назначаем, кому эта карточка открывает дорогу (правее),
      'in'  — от кого она сама зависит (левее). */
   var editing = null;
   var views = [];        // по одному на дерево: куда перерисовывать
+  var modal = null;      // окно карточки технологии
+  var modalHistory = []; // по каким карточкам в нём уже прошли
+
+  var tabs = document.createElement('div');
+  tabs.className = 'tree-tabs';
+  mount.appendChild(tabs);
 
   board.trees.forEach(function (tree) {
+    var tab = document.createElement('button');
+    tab.type = 'button';
+    tab.className = 'tree-tab' + (views.length ? '' : ' on');
+    tab.dataset.tree = tree.id;
+    tab.textContent = tree.name + ' · ' + tree.nodes.length;
+    tab.addEventListener('click', function () { showTree(tree.id); });
+    tabs.appendChild(tab);
+
     var section = document.createElement('section');
     section.className = 'tree-board';
+    section.dataset.tree = tree.id;
+    if (views.length) { section.hidden = true; }
     section.innerHTML =
-      '<h2>' + escapeHtml(tree.name) + '</h2>' +
       '<div class="board-legend"></div>' +
       '<div class="board-scroll"><div class="board"><svg class="edges"></svg></div></div>';
     mount.appendChild(section);
@@ -71,54 +114,114 @@
         '"></span>' + escapeHtml(name) + '</span>';
     }).join('');
 
+    wirePan(section.querySelector('.board-scroll'));
     renderColumns(boardEl, svgEl, tree);
 
-    window.addEventListener('resize', function () { drawEdges(boardEl, svgEl, tree.id); });
+    window.addEventListener('resize', function () {
+      if (!section.hidden) drawEdges(boardEl, svgEl, tree.id);
+    });
   });
 
   wireToolbar();
+  wireModal();
   if (FOCUS) { focusNode(FOCUS); }
+
+  /* Переключение деревьев вкладками: на экране всегда одно.
+     Скрытую доску нельзя обмерить (высота дорожек и координаты связей
+     считаются по факту), поэтому показанное дерево перерисовываем. */
+  function showTree(treeId) {
+    mount.querySelectorAll('.tree-tab').forEach(function (t) {
+      t.classList.toggle('on', Number(t.dataset.tree) === treeId);
+    });
+    mount.querySelectorAll('.tree-board').forEach(function (sec) {
+      sec.hidden = Number(sec.dataset.tree) !== treeId;
+    });
+    views.forEach(function (v) {
+      if (v.tree.id === treeId) renderColumns(v.boardEl, v.svgEl, v.tree);
+    });
+  }
+
+  /** Дерево, на вкладке которого сейчас находимся. */
+  function activeTreeId() {
+    var on = mount.querySelector('.tree-tab.on');
+    return on ? Number(on.dataset.tree) : (board.trees[0] || {}).id;
+  }
+
+  /* Протаскивание доски мышью: зажали фон — двигаем видимую область
+     в обе стороны. По карточкам и кнопкам не тянем, чтобы не мешать
+     кликам и правке связей. */
+  function wirePan(scroll) {
+    if (!scroll) return;
+    var from = null;
+
+    scroll.addEventListener('mousedown', function (ev) {
+      if (ev.button !== 0) return;
+      if (ev.target.closest('.node, button, a, input, label')) return;
+      from = {
+        x: ev.clientX, y: ev.clientY,
+        left: scroll.scrollLeft, top: scroll.scrollTop,
+      };
+      scroll.classList.add('panning');
+      ev.preventDefault();
+    });
+
+    window.addEventListener('mousemove', function (ev) {
+      if (!from) return;
+      scroll.scrollLeft = from.left - (ev.clientX - from.x);
+      scroll.scrollTop = from.top - (ev.clientY - from.y);
+    });
+
+    window.addEventListener('mouseup', function () {
+      if (!from) return;
+      from = null;
+      scroll.classList.remove('panning');
+    });
+  }
 
   /* Закреплённая панель над доской: коэффициент столбца и пересчёт всех
      стоимостей. Панель лежит вне горизонтальной прокрутки доски, поэтому
      остаётся на экране при любом сдвиге дерева вбок. */
   function wireToolbar() {
     var btn = document.getElementById('recalc-all');
-    var step = document.getElementById('cost-step');
     if (!btn) return;
 
     btn.addEventListener('click', function () {
       if (!confirm('Пересчитать стоимости всех технологий во всех эпохах ' +
                    'по средним, заданным для столбцов?')) return;
-      recalc(withStep({ scope: 'version' }));
+      recalc(withSteps({ scope: 'version' }));
     });
 
-    if (step) {
-      // менять коэффициент имеет смысл только вместе с пересчётом:
-      // средние над столбцами и стоимости должны разойтись одновременно
-      step.addEventListener('change', function () {
-        var value = Number(step.value);
-        if (!value || value < 1.05 || value > 4) {
-          alert('Коэффициент должен быть от 1.05 до 4');
-          step.value = COST_STEP.toFixed(2);
-          return;
-        }
-        if (value === COST_STEP) return;
-        recalc({ scope: 'version', step: value });
+    // менять коэффициент имеет смысл только вместе с пересчётом:
+    // средние над столбцами и стоимости должны разойтись одновременно
+    [['cost-step-lane', 'COST_STEP_LANE'], ['cost-step-era', 'COST_STEP_ERA']]
+      .forEach(function (pair) {
+        var input = document.getElementById(pair[0]);
+        if (!input) return;
+        input.addEventListener('change', function () {
+          var value = Number(input.value);
+          if (!value || value < 1.01 || value > 4) {
+            alert('Коэффициент должен быть от 1.01 до 4');
+            input.value = (pair[1] === 'COST_STEP_LANE' ? COST_STEP_LANE : COST_STEP_ERA).toFixed(2);
+            return;
+          }
+          recalc(withSteps({ scope: 'version' }));
+        });
+        input.addEventListener('keydown', function (ev) {
+          if (ev.key === 'Enter') { ev.preventDefault(); input.blur(); }
+        });
       });
-      step.addEventListener('keydown', function (ev) {
-        if (ev.key === 'Enter') { ev.preventDefault(); step.blur(); }
-      });
-    }
 
     updateTotals();
   }
 
-  /* Коэффициент из поля панели — чтобы правка без Enter не потерялась. */
-  function withStep(params) {
-    var step = document.getElementById('cost-step');
-    var value = step ? Number(step.value) : 0;
-    if (value >= 1.05 && value <= 4) params.step = value;
+  /* Коэффициенты из полей панели — чтобы правка без Enter не потерялась. */
+  function withSteps(params) {
+    var lane = document.getElementById('cost-step-lane');
+    var era = document.getElementById('cost-step-era');
+    var a = lane ? Number(lane.value) : 0;
+    var b = era ? Number(era.value) : 0;
+    if (a >= 1.01 && a <= 4) params.step_lane = a;
+    if (b >= 1.01 && b <= 4) params.step_era = b;
     return params;
   }
 
@@ -129,18 +232,19 @@
     if (!el) return;
     var total = 0;
     var last = 0;
+    var lastAvg = 0;
     board.trees.forEach(function (tree) {
-      tree.nodes.forEach(function (n) {
-        total += n.cost;
-        if (n.col > last) last = n.col;
-      });
+      var columns = tree.eras.reduce(function (a, e) { return a + e.lanes; }, 0);
+      if (columns > last) {
+        last = columns;
+        lastAvg = columnAverage(tree, columns - 1);
+      }
+      tree.nodes.forEach(function (n) { total += n.cost; });
     });
     el.textContent = money(total);
 
     var tail = document.getElementById('cost-tail');
-    if (tail) {
-      tail.textContent = 'столбец ' + (last + 1) + ' ≈ ' + money(columnAverage(last));
-    }
+    if (tail) { tail.textContent = 'столбец ' + last + ' ≈ ' + money(lastAvg); }
   }
 
   /* Раскладка столбцов одного дерева. Вызывается заново после правки
@@ -168,7 +272,8 @@
           '<div class="col-tool" data-col="' + gcol + '" data-era="' + era.era_id + '">' +
             '<span class="ct-title">Столбец ' + (gcol + 1) + '</span>' +
             '<label class="ct-avg">среднее' +
-              '<input type="number" min="1" step="1" value="' + columnAverage(gcol) + '">' +
+              '<input type="text" inputmode="numeric" value="' +
+                money(columnAverage(tree, gcol)) + '">' +
             '</label>' +
             '<button class="ct-apply" title="Применить среднее: остальные столбцы поедут за ним по коэффициенту">' +
               'применить' +
@@ -227,12 +332,12 @@
     col.querySelectorAll('.col-tool').forEach(function (tool) {
       var gcol = Number(tool.dataset.col);
       tool.querySelector('.ct-roll').addEventListener('click', function () {
-        recalc(withStep({ scope: 'column', tree_id: tree.id, column: gcol }));
+        recalc(withSteps({ scope: 'column', tree_id: tree.id, column: gcol }));
       });
       tool.querySelector('.ct-apply').addEventListener('click', function () {
-        var value = Number(tool.querySelector('input').value);
+        var value = unmoney(tool.querySelector('input').value);
         if (!value || value < 1) { alert('Среднее должно быть положительным числом'); return; }
-        recalc(withStep({ scope: 'version', column: gcol, average: value }));
+        recalc(withSteps({ scope: 'version', tree_id: tree.id, column: gcol, average: value }));
       });
       tool.querySelector('input').addEventListener('keydown', function (ev) {
         if (ev.key === 'Enter') { ev.preventDefault(); tool.querySelector('.ct-apply').click(); }
@@ -241,7 +346,7 @@
     var eraBtn = col.querySelector('.ct-roll.era');
     if (eraBtn) {
       eraBtn.addEventListener('click', function () {
-        recalc(withStep({ scope: 'era', tree_id: tree.id, version_era_id: era.era_id }));
+        recalc(withSteps({ scope: 'era', tree_id: tree.id, version_era_id: era.era_id }));
       });
     }
   }
@@ -259,13 +364,16 @@
     }).then(function (r) { return r.json(); }).then(function (res) {
       if (!res.ok) { alert(res.error || 'Не удалось пересчитать стоимости'); return; }
       COST_BASE = res.cost_base;
-      COST_STEP = Number(res.cost_step) || COST_STEP;
-      var stepEl = document.getElementById('cost-step');
-      if (stepEl) stepEl.value = COST_STEP.toFixed(2);
+      COST_STEP_LANE = Number(res.cost_step_lane) || COST_STEP_LANE;
+      COST_STEP_ERA = Number(res.cost_step_era) || COST_STEP_ERA;
+      var laneEl = document.getElementById('cost-step-lane');
+      var eraEl = document.getElementById('cost-step-era');
+      if (laneEl) laneEl.value = COST_STEP_LANE.toFixed(2);
+      if (eraEl) eraEl.value = COST_STEP_ERA.toFixed(2);
       if (res.capped) {
-        alert('При коэффициенте ' + COST_STEP.toFixed(2) + ' стоимости ' + res.capped +
+        alert('При таких коэффициентах стоимости ' + res.capped +
               ' технологий упёрлись в потолок и перестали различаться. ' +
-              'Возьмите коэффициент поменьше.');
+              'Возьмите коэффициенты поменьше.');
       }
       board.trees.forEach(function (tree) {
         tree.nodes.forEach(function (n) {
@@ -323,11 +431,12 @@
             escapeHtml(n.name) +
             (n.source === 'manual' ? '<span class="tag-manual">вручную</span>' : '') +
           '</span>' +
-          '<span class="node-cost" title="Стоимость технологии">' + n.cost + '</span>' +
+          '<span class="node-cost" title="Стоимость технологии">' + money(n.cost) + '</span>' +
           '<span class="node-effects">' + icons + '</span>' +
           '<span class="node-info">' + (info || '<span class="grp muted">эффекты не заданы</span>') + '</span>' +
         '</span>' +
       '</a>' +
+      '<button class="node-more" title="Открыть карточку технологии">i</button>' +
       '<button class="edge-btn left" title="Связи с предыдущими столбцами">‹</button>' +
       '<button class="edge-btn right" title="Связи со следующими столбцами">›</button>' +
       '<button class="drop" title="Убрать с доски этой версии">×</button>';
@@ -337,6 +446,10 @@
       if (!confirm('Убрать «' + n.name + '» с доски этой версии?')) return;
       document.getElementById('remove-node-id').value = n.id;
       document.getElementById('remove-form').submit();
+    });
+    el.querySelector('.node-more').addEventListener('click', function (ev) {
+      ev.preventDefault(); ev.stopPropagation();
+      openCard(n.id);
     });
     el.querySelector('.edge-btn.left').addEventListener('click', function (ev) {
       ev.preventDefault(); ev.stopPropagation();
@@ -499,6 +612,10 @@
 
   /* Прокрутка к карточке и вспышка — возврат из страницы технологии. */
   function focusNode(nodeId) {
+    // карточка может лежать на соседней вкладке — сначала показываем дерево
+    var found = nodeById(nodeId);
+    if (found && found.tree.id !== activeTreeId()) { showTree(found.tree.id); }
+
     var el = document.querySelector('#board .node[data-id="' + nodeId + '"]');
     if (!el) return;
     var scroller = el.closest('.board-scroll');
@@ -597,6 +714,121 @@
       n.removeAttribute('data-level');
     });
     document.querySelectorAll('#board .edge-path').forEach(function (p) { p.classList.remove('hi', 'dim'); });
+  }
+
+  /* ---------------- модальное окно карточки ---------------- */
+  /* Описание и справка на доску не приезжают — их 623 штуки по нескольку
+     абзацев. Окно забирает данные по одной карточке и позволяет ходить
+     по соседям, не закрываясь: клик по соседу перезагружает содержимое. */
+
+  function wireModal() {
+    modal = document.createElement('div');
+    modal.className = 'tech-modal';
+    modal.innerHTML =
+      '<div class="tm-back"></div>' +
+      '<div class="tm-window" role="dialog" aria-modal="true">' +
+        '<button class="tm-close" title="Закрыть (Esc)">×</button>' +
+        '<div class="tm-body"></div>' +
+      '</div>';
+    document.body.appendChild(modal);
+
+    modal.querySelector('.tm-back').addEventListener('click', closeCard);
+    modal.querySelector('.tm-close').addEventListener('click', closeCard);
+    document.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Escape' && modal.classList.contains('on')) closeCard();
+    });
+  }
+
+  function closeCard() {
+    if (!modal) return;
+    modal.classList.remove('on');
+    modalHistory = [];
+  }
+
+  function openCard(nodeId, keepHistory) {
+    if (!modal) return;
+    if (!keepHistory) modalHistory = [];
+    modal.classList.add('on');
+    modal.querySelector('.tm-body').innerHTML = '<div class="tm-load">Загружаем…</div>';
+
+    fetch('index.php?p=tech-card&version_id=' + VERSION + '&node_id=' + nodeId, {
+      credentials: 'same-origin',
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (!res.ok) {
+        modal.querySelector('.tm-body').innerHTML =
+          '<div class="tm-load">' + escapeHtml(res.error || 'Не удалось загрузить') + '</div>';
+        return;
+      }
+      paintCard(res.card);
+    }).catch(function () {
+      modal.querySelector('.tm-body').innerHTML = '<div class="tm-load">Сервер недоступен</div>';
+    });
+  }
+
+  function paintCard(card) {
+    var links = function (list, empty) {
+      if (!list.length) return '<p class="tm-empty">' + empty + '</p>';
+      return '<ul class="tm-links">' + list.map(function (item) {
+        return '<li><button class="tm-link" data-id="' + item.id + '" ' +
+          'style="--branch:' + escapeHtml(item.color) + '">' +
+          escapeHtml(item.name) + ' <span class="tm-cost">(' + money(item.cost) + ')</span>' +
+          '</button></li>';
+      }).join('') + '</ul>';
+    };
+    var paragraphs = function (text) {
+      if (!text) return '<p class="tm-empty">не заполнено</p>';
+      return String(text).split(/\n+/).filter(function (p) { return p.trim(); })
+        .map(function (p) { return '<p>' + escapeHtml(p.trim()) + '</p>'; }).join('');
+    };
+
+    modal.querySelector('.tm-body').innerHTML =
+      '<div class="tm-head" style="--branch:' + escapeHtml(card.color) + '">' +
+        (card.image ? '<img class="tm-art" src="' + escapeHtml(card.image) + '" alt="">' : '') +
+        '<div class="tm-title">' +
+          (modalHistory.length ? '<button class="tm-step">← назад</button>' : '') +
+          '<h3>' + escapeHtml(card.name) + '</h3>' +
+          '<div class="tm-meta">' +
+            '<span class="tm-branch">' + escapeHtml(card.branch) + '</span>' +
+            '<span>' + escapeHtml(card.era) +
+              (card.period ? ' · ' + escapeHtml(card.period) : '') + '</span>' +
+            '<span>столбец ' + card.column + '</span>' +
+          '</div>' +
+          '<div class="tm-price">' + money(card.cost) + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="tm-grid">' +
+        '<section><h4>Сначала нужно открыть</h4>' +
+          links(card.prev, 'ничего — это корень дерева') + '</section>' +
+        '<section><h4>Открывает дорогу к</h4>' +
+          links(card.next, 'пока никуда') + '</section>' +
+      '</div>' +
+      '<div class="tm-text">' +
+        '<h4>Что это даёт</h4>' + paragraphs(card.description) +
+        '<h4>Историческая справка</h4>' + paragraphs(card.historical_note) +
+      '</div>' +
+      '<div class="tm-foot">' +
+        '<a class="button" href="index.php?p=technology&id=' + card.tech_id +
+          '&from=' + VERSION + '&node=' + card.id + '">Открыть на редактирование</a>' +
+        '<button class="tm-locate" data-id="' + card.id + '">Показать на дереве</button>' +
+      '</div>';
+
+    modal.querySelectorAll('.tm-link').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        modalHistory.push(card.id);
+        openCard(Number(btn.dataset.id), true);
+      });
+    });
+    var step = modal.querySelector('.tm-step');
+    if (step) {
+      step.addEventListener('click', function () {
+        var previous = modalHistory.pop();
+        if (previous) openCard(previous, true);
+      });
+    }
+    modal.querySelector('.tm-locate').addEventListener('click', function () {
+      closeCard();
+      focusNode(card.id);
+    });
   }
 
   function escapeHtml(value) {

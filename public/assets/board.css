@@ -5,10 +5,26 @@
 .board-legend .sw{display:inline-flex;align-items:center;gap:5px}
 .board-legend .dot{width:9px;height:9px;border-radius:3px;display:inline-block}
 
+/* Доска прокручивается в обе стороны внутри своей рамки: так её можно
+   таскать мышью за фон, а заголовки эпох остаются приклеенными сверху. */
 .board-scroll{
-  overflow-x:auto;overflow-y:hidden;border:1px solid var(--border);
+  overflow:auto;max-height:calc(100vh - 150px);
+  border:1px solid var(--border);
   border-radius:12px;background:var(--surface);box-shadow:var(--shadow);
+  cursor:grab;overscroll-behavior:contain;
 }
+.board-scroll.panning{cursor:grabbing;user-select:none}
+.board-scroll.panning .node{pointer-events:none}
+
+/* ---- вкладки деревьев ---- */
+.tree-tabs{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.tree-tab{
+  font:inherit;font-size:13px;font-weight:600;cursor:pointer;padding:8px 15px;
+  border-radius:9px;border:1px solid var(--border);
+  background:var(--surface);color:var(--text);
+}
+.tree-tab:hover{background:var(--surface-2)}
+.tree-tab.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .board{position:relative;display:flex;align-items:stretch;min-height:120px}
 svg.edges{position:absolute;top:0;left:0;pointer-events:none;overflow:visible}
 .edge-path{fill:none;stroke:var(--text-faint);stroke-width:1.6;opacity:.85}
@@ -124,6 +140,17 @@ svg.edges{position:absolute;top:0;left:0;pointer-events:none;overflow:visible}
   display:inline-block;font-size:9px;padding:0 5px;border-radius:99px;margin-left:5px;
   background:var(--card-group);color:#fff;vertical-align:middle;
 }
+/* кнопка «i» — открывает карточку в модальном окне */
+.node .node-more{
+  position:absolute;top:4px;left:5px;width:20px;height:20px;padding:0;
+  font-size:12px;font-weight:700;font-style:italic;line-height:18px;
+  color:var(--card-ink-dim);background:rgba(255,255,255,.75);
+  border:1px solid var(--card-edge);border-radius:50%;
+  cursor:pointer;display:none;z-index:2;
+}
+.node:hover .node-more{display:block}
+.node .node-more:hover{color:#fff;background:var(--card-group);border-color:var(--card-group)}
+
 .node .drop{
   position:absolute;top:4px;right:5px;font-size:14px;line-height:1;color:var(--card-ink-dim);
   background:rgba(255,255,255,.7);border:1px solid var(--card-edge);border-radius:5px;
@@ -208,3 +235,86 @@ svg.edges{position:absolute;top:0;left:0;pointer-events:none;overflow:visible}
 .col-tool button{padding:3px 8px;font-size:11px}
 .col-tool .ct-sum{margin-left:auto;white-space:nowrap}
 .col-tool .ct-sum b{color:var(--text);font-variant-numeric:tabular-nums}
+
+/* ------------------------------------------------------------------ */
+/*  Модальное окно карточки технологии                                 */
+/*  Описание, историческая справка и соседи по связям со стоимостью.   */
+/*  По соседям можно ходить, не закрывая окно.                         */
+/* ------------------------------------------------------------------ */
+.tech-modal{display:none;position:fixed;inset:0;z-index:60}
+.tech-modal.on{display:block}
+.tech-modal .tm-back{position:absolute;inset:0;background:rgba(20,16,10,.55)}
+.tech-modal .tm-window{
+  position:relative;margin:4vh auto;max-width:860px;width:calc(100% - 32px);
+  max-height:92vh;overflow-y:auto;
+  background:var(--surface);color:var(--text);
+  border:1px solid var(--border);border-radius:14px;
+  box-shadow:0 20px 60px rgba(0,0,0,.4);
+}
+.tech-modal .tm-close{
+  position:absolute;top:10px;right:12px;z-index:2;
+  width:30px;height:30px;padding:0;font-size:19px;line-height:1;
+  border-radius:8px;border:1px solid var(--border);
+  background:var(--surface-2);color:var(--text-dim);cursor:pointer;
+}
+.tech-modal .tm-close:hover{color:#fff;background:#a3502a;border-color:#a3502a}
+.tech-modal .tm-load{padding:40px;text-align:center;color:var(--text-dim)}
+
+.tech-modal .tm-head{
+  display:flex;gap:16px;align-items:flex-start;padding:18px 54px 16px 18px;
+  border-bottom:3px solid var(--branch, var(--border));
+}
+.tech-modal .tm-art{
+  width:104px;height:104px;flex:0 0 auto;border-radius:10px;object-fit:cover;
+  border:1px solid var(--card-edge-2);
+}
+.tech-modal .tm-title{min-width:0;flex:1}
+.tech-modal .tm-title h3{margin:0;font-size:21px;line-height:1.2}
+.tech-modal .tm-step{
+  font:inherit;font-size:11.5px;padding:2px 8px;margin-bottom:6px;cursor:pointer;
+  border-radius:7px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-dim);
+}
+.tech-modal .tm-step:hover{color:var(--text)}
+.tech-modal .tm-meta{
+  display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:5px;
+  font-size:12px;color:var(--text-dim);
+}
+.tech-modal .tm-branch{font-weight:700;color:var(--branch, var(--text))}
+.tech-modal .tm-price{
+  margin-top:7px;font-size:20px;font-weight:700;font-style:italic;
+  color:var(--card-cost);font-variant-numeric:tabular-nums;
+}
+
+.tech-modal .tm-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:16px 18px;
+  border-bottom:1px solid var(--border);
+}
+@media (max-width: 620px){ .tech-modal .tm-grid{grid-template-columns:1fr} }
+.tech-modal h4{margin:0 0 7px;font-size:12px;text-transform:uppercase;
+  letter-spacing:.05em;color:var(--text-faint)}
+.tech-modal .tm-links{list-style:none;margin:0;padding:0;display:flex;
+  flex-direction:column;gap:5px}
+.tech-modal .tm-link{
+  font:inherit;font-size:13px;text-align:left;width:100%;cursor:pointer;
+  padding:6px 9px;border-radius:8px;background:var(--surface-2);color:var(--text);
+  border:1px solid var(--border);border-left:4px solid var(--branch, var(--border));
+}
+.tech-modal .tm-link:hover{background:var(--surface);border-color:var(--branch, var(--border))}
+.tech-modal .tm-cost{color:var(--card-cost);font-weight:700;font-variant-numeric:tabular-nums}
+.tech-modal .tm-empty{margin:0;font-size:12.5px;color:var(--text-faint);font-style:italic}
+
+.tech-modal .tm-text{padding:16px 18px}
+.tech-modal .tm-text h4{margin-top:16px}
+.tech-modal .tm-text h4:first-child{margin-top:0}
+.tech-modal .tm-text p{margin:0 0 9px;line-height:1.55}
+
+.tech-modal .tm-foot{
+  display:flex;flex-wrap:wrap;gap:8px;padding:14px 18px 18px;
+  border-top:1px solid var(--border);
+}
+.tech-modal .tm-locate{
+  font:inherit;font-size:13px;padding:7px 13px;cursor:pointer;
+  border-radius:9px;border:1px solid var(--border);
+  background:var(--surface-2);color:var(--text);
+}
+.tech-modal .tm-locate:hover{background:var(--surface)}

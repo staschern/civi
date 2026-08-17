@@ -165,12 +165,25 @@ try {
                     !empty($_POST['version_era_id']) ? (int) $_POST['version_era_id'] : null,
                     isset($_POST['column']) && $_POST['column'] !== '' ? (int) $_POST['column'] : null,
                     isset($_POST['average']) && $_POST['average'] !== '' ? (int) $_POST['average'] : null,
-                    isset($_POST['step']) && $_POST['step'] !== '' ? (float) $_POST['step'] : null
+                    isset($_POST['step_lane']) && $_POST['step_lane'] !== '' ? (float) $_POST['step_lane'] : null,
+                    isset($_POST['step_era']) && $_POST['step_era'] !== '' ? (float) $_POST['step_era'] : null
                 );
                 echo json_encode(['ok' => true] + $result, JSON_UNESCAPED_UNICODE);
             } catch (Civi\UserError $e) {
                 echo json_encode(['ok' => false, 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
             }
+            exit;
+
+        // данные для модального окна карточки: описание, справка и соседи
+        case 'tech-card':
+            header('Content-Type: application/json; charset=utf-8');
+            $card = $versions->cardData((int) ($_GET['version_id'] ?? 0), (int) ($_GET['node_id'] ?? 0));
+            if ($card === null) {
+                http_response_code(404);
+                echo json_encode(['ok' => false, 'error' => 'Карточка не найдена'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+            echo json_encode(['ok' => true, 'card' => $card], JSON_UNESCAPED_UNICODE);
             exit;
 
         case 'version-rename':

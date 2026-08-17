@@ -90,6 +90,17 @@ function h($value): string
     return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
+/**
+ * Число с неразрывным пробелом через каждые три знака: 32 123 423.
+ *
+ * Пробел именно неразрывный — иначе стоимость рвётся по переносу строки
+ * и читается как два разных числа.
+ */
+function money($value): string
+{
+    return number_format((float) $value, 0, ',', "\xc2\xa0");
+}
+
 /** Ссылка внутри админки. */
 function url(string $page, array $params = []): string
 {

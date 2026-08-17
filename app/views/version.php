@@ -77,7 +77,10 @@ foreach ($data['links'] as $l) {
   <?php endif; ?>
 </div>
 
-<p class="hint">Наведите на карточку — подсветятся связи на три шага в обе стороны.
+<p class="hint">Деревья переключаются вкладками. Доску можно таскать мышью за фон —
+  вверх-вниз и вправо-влево. Кнопка «i» на карточке открывает окно с описанием,
+  исторической справкой и соседями по связям, по которым можно ходить дальше.
+  Наведите на карточку — подсветятся связи на три шага в обе стороны.
   Кнопки «‹» и «›» по бокам карточки включают правку связей: слева — от кого технология
   зависит, справа — кому открывает дорогу. После правки карточка сама встаёт в столбец
   за самой поздней из своих основ, и это сразу сохраняется. Если места в эпохе не хватило,
@@ -126,13 +129,18 @@ foreach ($data['links'] as $l) {
 <!-- Панель прилипает к верху окна и лежит вне горизонтальной прокрутки
      доски, поэтому кнопка пересчёта видна при любом сдвиге дерева вбок. -->
 <div class="board-toolbar">
-  <label class="tb-step">Коэффициент столбца
-    <input type="number" id="cost-step" min="1.05" max="4" step="0.05"
-           value="<?= h(number_format((float) ($version['cost_step'] ?? 1.3), 2, '.', '')) ?>">
+  <label class="tb-step">Внутри эпохи ×
+    <input type="number" id="cost-step-lane" min="1.01" max="4" step="0.05"
+           title="Во сколько раз следующий столбец внутри эпохи дороже предыдущего"
+           value="<?= h(number_format((float) ($version['cost_step_lane'] ?? 1.1), 2, '.', '')) ?>">
+  </label>
+  <label class="tb-step">Между эпохами ×
+    <input type="number" id="cost-step-era" min="1.01" max="4" step="0.05"
+           title="Во сколько раз первый столбец новой эпохи дороже последнего столбца прошлой"
+           value="<?= h(number_format((float) ($version['cost_step_era'] ?? 1.5), 2, '.', '')) ?>">
   </label>
   <button type="button" id="recalc-all">Пересчитать стоимости всех эпох</button>
-  <span class="hint">каждый следующий столбец дороже предыдущего во столько раз;
-    последний <b id="cost-tail">—</b></span>
+  <span class="hint">последний <b id="cost-tail">—</b></span>
   <span class="tb-sum">Всего по версии: <b id="version-total">—</b></span>
 </div>
 
@@ -141,7 +149,8 @@ foreach ($data['links'] as $l) {
      data-csrf="<?= h($csrf) ?>"
      data-focus="<?= (int) ($focus ?? 0) ?>"
      data-cost-base="<?= (int) ($version['cost_base'] ?? 60) ?>"
-     data-cost-step="<?= h(number_format((float) ($version['cost_step'] ?? 1.3), 2, '.', '')) ?>"
+     data-cost-step-lane="<?= h(number_format((float) ($version['cost_step_lane'] ?? 1.1), 2, '.', '')) ?>"
+     data-cost-step-era="<?= h(number_format((float) ($version['cost_step_era'] ?? 1.5), 2, '.', '')) ?>"
      data-board="<?= h(json_encode($board, JSON_UNESCAPED_UNICODE)) ?>"></div>
 
 <form method="post" action="<?= h(url('version-remove-node')) ?>" id="remove-form" style="display:none">

@@ -72,7 +72,7 @@ $f = $filter;
       <td><span class="swatch" style="background: <?= h($row['branch_color']) ?>"></span><?= h($row['branch_name']) ?></td>
       <td><?= h($row['era_name']) ?></td>
       <td><?= $row['is_standard'] ? 'стандартный' : '<span class="tag">вне набора</span>' ?></td>
-      <td><?= $row['base_cost'] !== null ? (int) $row['base_cost'] : '<span class="hint">по столбцу</span>' ?></td>
+      <td><?= $row['base_cost'] !== null ? money($row['base_cost']) : '<span class="hint">по столбцу</span>' ?></td>
       <td><?= (int) $row['effect_count'] ?></td>
     </tr>
   <?php endforeach; ?>

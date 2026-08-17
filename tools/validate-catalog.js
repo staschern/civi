@@ -15,9 +15,9 @@
  *      технология без основ возможна только в самом первом столбце,
  *      у остальных есть основа в непосредственно предыдущем столбце
  *      (для первого столбца эпохи правило смягчено — это норма);
- *   4. стоимости — при заданных базе и коэффициенте диапазоны соседних
- *      столбцов не пересекаются, а самый дорогой столбец влезает
- *      в INT UNSIGNED.
+ *   4. стоимости — при заданных базе и коэффициентах диапазоны соседних
+ *      столбцов не пересекаются, а самый дорогой столбец не упирается
+ *      в потолок стоимости.
  *
  * Выход 1, если нашлась хоть одна проблема.
  */
@@ -28,10 +28,14 @@ const root = path.resolve(__dirname, '..');
 const catalogDir = path.join(root, 'db', 'catalog');
 
 const COST_BASE = 60;
-const COST_STEP = 1.3;
+const COST_STEP_LANE = 1.1;
+const COST_STEP_ERA = 1.5;
 const COST_JITTER = 0.15;
 const COST_MAX = 1000000000000000;
-const jitterFor = step => Math.min(COST_JITTER, (step - 1) / (step + 1) * 0.9);
+const jitterFor = (laneStep, eraStep) => {
+  const step = Math.min(laneStep, eraStep);
+  return Math.max(0, Math.min(COST_JITTER, (step - 1) / (step + 1) * 0.9));
+};
 
 const readLines = f => fs.readFileSync(path.join(catalogDir, f), 'utf8')
   .split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
@@ -63,6 +67,7 @@ if (catalog.eras.length !== eras.length) {
 let totalNodes = 0;
 let totalLinks = 0;
 let maxColumn = 0;
+let maxFactor = 1;
 
 catalog.trees.forEach(tree => {
   const byCode = new Map();
@@ -78,6 +83,17 @@ catalog.trees.forEach(tree => {
     offset += lanes;
   });
   maxColumn = Math.max(maxColumn, offset - 1);
+
+  // множитель самого правого столбца: во что обходится конец дерева
+  let factor = 1;
+  eras.forEach((era, eraIndex) => {
+    for (let lane = 0; lane < (tree.lanes[era.code] || 0); lane++) {
+      if (eraIndex === 0 && lane === 0) factor = 1;
+      else if (lane === 0) factor *= COST_STEP_ERA;
+      else factor *= COST_STEP_LANE;
+    }
+  });
+  maxFactor = Math.max(maxFactor, factor);
 
   tree.nodes.forEach(n => {
     if (byCode.has(n.code)) note(tree.code + ':', 'повтор кода', n.code);
@@ -153,14 +169,14 @@ catalog.trees.forEach(tree => {
 });
 
 // ---- стоимости -------------------------------------------------------
-const jitter = jitterFor(COST_STEP);
-const top = COST_BASE * Math.pow(COST_STEP, maxColumn) * (1 + jitter);
+const jitter = jitterFor(COST_STEP_LANE, COST_STEP_ERA);
+const top = COST_BASE * maxFactor * (1 + jitter);
 if (top > COST_MAX) {
-  note('при базе', COST_BASE, 'и коэффициенте', COST_STEP,
+  note('при базе', COST_BASE, 'и коэффициентах', COST_STEP_LANE + '/' + COST_STEP_ERA,
     'последний столбец стоит', Math.round(top), '— больше потолка', COST_MAX);
 }
-if (COST_STEP * (1 - jitter) <= 1 + jitter) {
-  note('при коэффициенте', COST_STEP, 'и разбросе', jitter.toFixed(3),
+if (Math.min(COST_STEP_LANE, COST_STEP_ERA) * (1 - jitter) <= 1 + jitter) {
+  note('при коэффициентах', COST_STEP_LANE + '/' + COST_STEP_ERA, 'и разбросе', jitter.toFixed(3),
     'диапазоны соседних столбцов пересекаются');
 }
 

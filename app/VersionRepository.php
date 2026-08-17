@@ -14,20 +14,25 @@ final class VersionRepository
     /**
      * Стоимость технологии определяется её столбцом.
      *
-     * Отсчёт начинается с COST_BASE за технологию первого столбца.
-     * Каждый следующий столбец дороже предыдущего в cost_step раз, внутри
-     * столбца стоимости расходятся на ±разброс. И база, и шаг хранятся
-     * у версии, поэтому их можно менять прямо на доске; здесь только
-     * значения по умолчанию для новой версии.
+     * Отсчёт начинается с COST_BASE за технологию первого столбца, дальше
+     * работают два коэффициента:
      *
-     * Разброс не постоянный, а считается от шага (см. jitterFor): диапазоны
-     * соседних столбцов не должны пересекаться, иначе технологии перестанут
-     * читаться по цене. Чем меньше шаг, тем уже разброс.
+     *   - COST_STEP_LANE — переход к следующему столбцу внутри той же эпохи;
+     *   - COST_STEP_ERA  — переход через границу эпохи.
+     *
+     * Внутри эпохи цена растёт полого, на смене эпохи делает заметный шаг.
+     * Оба коэффициента и база хранятся у версии и правятся прямо на доске;
+     * здесь только значения по умолчанию для новой версии.
+     *
+     * Разброс внутри столбца не постоянный, а считается от меньшего из двух
+     * коэффициентов (см. jitterFor): диапазоны соседних столбцов не должны
+     * пересекаться, иначе технологии перестанут читаться по цене.
      */
     private const COST_BASE = 60;
-    private const COST_STEP = 1.3;
+    private const COST_STEP_LANE = 1.1;
+    private const COST_STEP_ERA = 1.5;
     private const COST_JITTER = 0.15;
-    private const COST_STEP_MIN = 1.05;
+    private const COST_STEP_MIN = 1.01;
     private const COST_STEP_MAX = 4.0;
 
     /**
@@ -38,10 +43,44 @@ final class VersionRepository
      * технология следующего — step × (1 − j). Условие step(1−j) > 1+j даёт
      * j < (step − 1) / (step + 1); берём девять десятых от предела, чтобы
      * между столбцами оставался зазор, и не превышаем COST_JITTER.
+     * Считаем по меньшему коэффициенту — он и определяет узкое место.
      */
-    private static function jitterFor(float $step): float
+    private static function jitterFor(float $laneStep, float $eraStep): float
     {
-        return min(self::COST_JITTER, ($step - 1) / ($step + 1) * 0.9);
+        $step = min($laneStep, $eraStep);
+
+        return max(0.0, min(self::COST_JITTER, ($step - 1) / ($step + 1) * 0.9));
+    }
+
+    /**
+     * Множители стоимости по сквозным столбцам одного дерева.
+     *
+     * Идём по столбцам слева направо: внутри эпохи домножаем на шаг столбца,
+     * на первом столбце новой эпохи — на шаг эпохи. Первый столбец доски
+     * имеет множитель 1, то есть стоит ровно cost_base.
+     *
+     * @param array $laneCounts число столбцов эпох по порядку
+     *
+     * @return array [сквозной номер столбца => множитель]
+     */
+    public static function columnFactors(array $laneCounts, float $laneStep, float $eraStep): array
+    {
+        $factors = [];
+        $value = 1.0;
+        foreach (array_values($laneCounts) as $eraIndex => $lanes) {
+            for ($lane = 0; $lane < max(1, (int) $lanes); $lane++) {
+                if ($eraIndex === 0 && $lane === 0) {
+                    $value = 1.0;
+                } elseif ($lane === 0) {
+                    $value *= $eraStep;
+                } else {
+                    $value *= $laneStep;
+                }
+                $factors[] = $value;
+            }
+        }
+
+        return $factors;
     }
 
     /**
@@ -140,13 +179,14 @@ final class VersionRepository
             $versionId = $db->insert(
                 'INSERT INTO tree_versions
                     (name, seed_code, seed_numbers, seed_science, seed_culture, seed_layout,
-                     cost_base, cost_step, parent_version_id)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                     cost_base, cost_step_lane, cost_step_era, parent_version_id)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [
                     ($name === null || $name === '') ? null : $name,
                     $seedCode,
                     json_encode(array_map('intval', $seed)),
-                    $seed[0], $seed[1], $seed[2], self::COST_BASE, self::COST_STEP, $parentId,
+                    $seed[0], $seed[1], $seed[2],
+                    self::COST_BASE, self::COST_STEP_LANE, self::COST_STEP_ERA, $parentId,
                 ]
             );
 
@@ -239,7 +279,10 @@ final class VersionRepository
 
                 $costRng = new Rng($treeSeed ^ 0x5EED);
                 $costBase = self::COST_BASE;
-                $costStep = self::COST_STEP;
+                $jitter = self::jitterFor(self::COST_STEP_LANE, self::COST_STEP_ERA);
+                $factors = self::columnFactors(
+                    $laneCounts[$tree['id']], self::COST_STEP_LANE, self::COST_STEP_ERA
+                );
                 foreach ($layout['nodes'] as $techId => $n) {
                     $nodeIdByTech[$techId] = $db->insert(
                         'INSERT INTO tree_version_nodes
@@ -249,8 +292,10 @@ final class VersionRepository
                         [
                             $versionId, $tree['id'], $techId, $versionEraId[$n['era_id']],
                             $n['lane'], $n['row'], $n['global_column'],
-                            $baseCost[$techId]
-                                ?? self::costFor((int) $n['global_column'], $costRng, $costBase, $costStep),
+                            $baseCost[$techId] ?? self::costFor(
+                                $factors[(int) $n['global_column']] ?? 1.0,
+                                $costRng, $costBase, $jitter
+                            ),
                             $n['relaxed'] ? 1 : 0,
                         ]
                     );
@@ -440,39 +485,49 @@ final class VersionRepository
     }
 
     /**
-     * Стоимость технологии в заданном сквозном столбце.
+     * Стоимость технологии в столбце с заданным множителем.
      *
      * Диапазоны соседних столбцов гарантированно не пересекаются, поэтому
      * любая технология столбца дороже любой технологии столбца левее
      * и дешевле любой технологии столбца правее.
      */
-    public static function costFor(
-        int $globalColumn,
-        Rng $rng,
-        ?int $costBase = null,
-        ?float $costStep = null
-    ): int {
-        $step = $costStep ?? self::COST_STEP;
-        $base = ($costBase ?? self::COST_BASE) * pow($step, $globalColumn);
-        $jitter = 1.0 + (($rng->next() * 2) - 1) * self::jitterFor($step);
+    public static function costFor(float $factor, Rng $rng, int $costBase, float $jitter): int
+    {
+        $value = $costBase * $factor * (1.0 + (($rng->next() * 2) - 1) * $jitter);
 
-        return max(1, min(self::COST_MAX, (int) round($base * $jitter)));
+        return max(1, min(self::COST_MAX, (int) round($value)));
     }
 
     /** Границы диапазона стоимостей столбца — для подсказок в интерфейсе. */
-    public static function costRange(
-        int $globalColumn,
-        ?int $costBase = null,
-        ?float $costStep = null
-    ): array {
-        $step = $costStep ?? self::COST_STEP;
-        $base = ($costBase ?? self::COST_BASE) * pow($step, $globalColumn);
-        $jitter = self::jitterFor($step);
+    public static function costRange(float $factor, int $costBase, float $jitter): array
+    {
+        $middle = $costBase * $factor;
 
         return [
-            min(self::COST_MAX, (int) round($base * (1 - $jitter))),
-            min(self::COST_MAX, (int) round($base * (1 + $jitter))),
+            max(1, min(self::COST_MAX, (int) round($middle * (1 - $jitter)))),
+            max(1, min(self::COST_MAX, (int) round($middle * (1 + $jitter)))),
         ];
+    }
+
+    /**
+     * Число столбцов эпох одного дерева по порядку эпох.
+     *
+     * @return array [version_era_id => число столбцов]
+     */
+    public function laneCounts(int $versionId, int $treeId): array
+    {
+        $lanes = [];
+        foreach ($this->db->all(
+            'SELECT tve.id, COALESCE(l.lanes, ?) AS lanes
+               FROM tree_version_eras tve
+               LEFT JOIN tree_version_era_lanes l ON l.version_era_id = tve.id AND l.tree_id = ?
+              WHERE tve.version_id = ? ORDER BY tve.position, tve.id',
+            [TreeGenerator::LANE_MIN, $treeId, $versionId]
+        ) as $row) {
+            $lanes[(int) $row['id']] = max(1, (int) $row['lanes']);
+        }
+
+        return $lanes;
     }
 
     /**
@@ -771,6 +826,73 @@ final class VersionRepository
         return false;
     }
 
+    /**
+     * Всё, что нужно модальному окну карточки: сама технология с описанием
+     * и справкой плюс ближайшие соседи по связям в обе стороны.
+     *
+     * Описания и справки на доску не отдаются — их 623 штуки по нескольку
+     * абзацев, страница бы распухла. Модальное окно забирает данные
+     * по одной карточке, когда его открывают.
+     */
+    public function cardData(int $versionId, int $nodeId): ?array
+    {
+        $node = $this->db->one(
+            'SELECT n.id, n.cost, n.global_column, t.id AS tech_id, t.name, t.image_path,
+                    t.description, t.historical_note, t.base_cost,
+                    b.name AS branch_name, b.color AS branch_color,
+                    COALESCE(tve.name_override, e.name) AS era_name, e.period
+               FROM tree_version_nodes n
+               JOIN technologies t        ON t.id = n.technology_id
+               JOIN branches b            ON b.id = t.branch_id
+               JOIN tree_version_eras tve ON tve.id = n.version_era_id
+               JOIN eras e                ON e.id = tve.era_id
+              WHERE n.version_id = ? AND n.id = ?',
+            [$versionId, $nodeId]
+        );
+        if ($node === null) {
+            return null;
+        }
+
+        $neighbours = function (string $join, string $where) use ($versionId, $nodeId): array {
+            return array_map(static function (array $row): array {
+                return [
+                    'id' => (int) $row['id'],
+                    'name' => $row['name'],
+                    'cost' => (int) $row['shown_cost'],
+                    'color' => $row['color'],
+                    'column' => (int) $row['global_column'],
+                ];
+            }, $this->db->all(
+                'SELECT n.id, n.global_column, t.name, b.color,
+                        COALESCE(t.base_cost, n.cost) AS shown_cost
+                   FROM tree_version_links l
+                   JOIN tree_version_nodes n ON n.id = l.' . $join . '
+                   JOIN technologies t       ON t.id = n.technology_id
+                   JOIN branches b           ON b.id = t.branch_id
+                  WHERE l.version_id = ? AND l.' . $where . ' = ?
+                  ORDER BY n.global_column, t.name',
+                [$versionId, $nodeId]
+            ));
+        };
+
+        return [
+            'id' => (int) $node['id'],
+            'tech_id' => (int) $node['tech_id'],
+            'name' => $node['name'],
+            'cost' => (int) ($node['base_cost'] ?? $node['cost']),
+            'column' => (int) $node['global_column'] + 1,
+            'branch' => $node['branch_name'],
+            'color' => $node['branch_color'],
+            'era' => $node['era_name'],
+            'period' => $node['period'],
+            'image' => image_url($node['image_path']),
+            'description' => $node['description'],
+            'historical_note' => $node['historical_note'],
+            'prev' => $neighbours('from_node_id', 'to_node_id'),
+            'next' => $neighbours('to_node_id', 'from_node_id'),
+        ];
+    }
+
     /** Карточка версии вместе с названием технологии. */
     public function nodeOnBoard(int $versionId, int $nodeId): ?array
     {
@@ -913,15 +1035,17 @@ final class VersionRepository
     /**
      * Пересчёт стоимостей по правилу столбцов.
      *
-     * Среднее столбца = cost_base × cost_step^номер, внутри столбца
-     * стоимости расходятся на ±15%. Область задаётся: вся версия,
-     * одна эпоха или один столбец.
+     * Среднее столбца = cost_base × множитель столбца, где множитель растёт
+     * на cost_step_lane внутри эпохи и на cost_step_era на её границе.
+     * Внутри столбца стоимости расходятся так, чтобы диапазоны соседних
+     * столбцов не пересекались. Область задаётся: вся версия, одна эпоха
+     * или один столбец.
      *
-     * Если передан $newStep, он становится новым коэффициентом версии —
-     * средние всех столбцов едут следом. Если передан $newAverage, он
-     * трактуется как желаемое среднее для столбца $column: база версии
-     * пересчитывается так, чтобы средние в остальных столбцах поехали
-     * за ним по тому же коэффициенту.
+     * Если переданы $laneStep или $eraStep, они становятся новыми
+     * коэффициентами версии — средние всех столбцов едут следом.
+     * Если передан $newAverage, он трактуется как желаемое среднее для
+     * столбца $column: база версии пересчитывается так, чтобы средние
+     * в остальных столбцах поехали за ним по тем же коэффициентам.
      *
      * @param string $scope 'version' | 'era' | 'column'
      */
@@ -932,39 +1056,57 @@ final class VersionRepository
         ?int $versionEraId = null,
         ?int $column = null,
         ?int $newAverage = null,
-        ?float $newStep = null
+        ?float $laneStep = null,
+        ?float $eraStep = null
     ): array {
         return $this->db->transaction(function (Db $db) use (
-            $versionId, $scope, $treeId, $versionEraId, $column, $newAverage, $newStep
+            $versionId, $scope, $treeId, $versionEraId, $column, $newAverage, $laneStep, $eraStep
         ) {
-            // шаг меняем первым: от него зависит пересчёт базы под новое среднее
-            if ($newStep !== null) {
-                if ($newStep < self::COST_STEP_MIN || $newStep > self::COST_STEP_MAX) {
+            // коэффициенты меняем первыми: от них зависит и пересчёт базы
+            // под новое среднее, и множители столбцов
+            foreach (['cost_step_lane' => $laneStep, 'cost_step_era' => $eraStep] as $field => $value) {
+                if ($value === null) {
+                    continue;
+                }
+                if ($value < self::COST_STEP_MIN || $value > self::COST_STEP_MAX) {
                     throw new UserError(sprintf(
                         'Коэффициент должен быть от %s до %s',
                         rtrim(rtrim(number_format(self::COST_STEP_MIN, 2, '.', ''), '0'), '.'),
                         rtrim(rtrim(number_format(self::COST_STEP_MAX, 2, '.', ''), '0'), '.')
                     ));
                 }
-                $db->run('UPDATE tree_versions SET cost_step = ? WHERE id = ?',
-                    [round($newStep, 2), $versionId]);
+                $db->run("UPDATE tree_versions SET $field = ? WHERE id = ?", [round($value, 2), $versionId]);
             }
 
-            $version = $db->one('SELECT cost_base, cost_step FROM tree_versions WHERE id = ?', [$versionId]);
+            $version = $db->one(
+                'SELECT cost_base, cost_step_lane, cost_step_era FROM tree_versions WHERE id = ?',
+                [$versionId]
+            );
             if ($version === null) {
                 throw new UserError('Версия не найдена');
             }
-            $costStep = (float) $version['cost_step'];
-            if ($costStep < self::COST_STEP_MIN) {
-                $costStep = self::COST_STEP;
+            $stepLane = (float) $version['cost_step_lane'] ?: self::COST_STEP_LANE;
+            $stepEra = (float) $version['cost_step_era'] ?: self::COST_STEP_ERA;
+            $jitter = self::jitterFor($stepLane, $stepEra);
+
+            // множители по столбцам считаются для каждого дерева отдельно:
+            // число столбцов в эпохе у науки и культуры своё
+            $factors = [];
+            foreach ($db->all('SELECT id FROM trees ORDER BY position, id') as $tree) {
+                $factors[(int) $tree['id']] = self::columnFactors(
+                    $this->laneCounts($versionId, (int) $tree['id']), $stepLane, $stepEra
+                );
             }
 
             if ($newAverage !== null) {
                 if ($newAverage < 1) {
                     throw new UserError('Среднее должно быть положительным числом');
                 }
-                $base = (int) round($newAverage / pow($costStep, max(0, (int) $column)));
-                $db->run('UPDATE tree_versions SET cost_base = ? WHERE id = ?', [max(1, $base), $versionId]);
+                // среднее задают для конкретного столбца конкретного дерева
+                $scale = $factors[$treeId ?? 1][max(0, (int) $column)]
+                    ?? $factors[array_key_first($factors)][max(0, (int) $column)] ?? 1.0;
+                $db->run('UPDATE tree_versions SET cost_base = ? WHERE id = ?',
+                    [max(1, (int) round($newAverage / $scale)), $versionId]);
             }
 
             $costBase = (int) $db->value('SELECT cost_base FROM tree_versions WHERE id = ?', [$versionId]);
@@ -972,7 +1114,7 @@ final class VersionRepository
                 $costBase = self::COST_BASE;
             }
 
-            $sql = 'SELECT id, global_column FROM tree_version_nodes WHERE version_id = ?';
+            $sql = 'SELECT id, tree_id, global_column FROM tree_version_nodes WHERE version_id = ?';
             $params = [$versionId];
             if ($scope === 'era') {
                 $sql .= ' AND tree_id = ? AND version_era_id = ?';
@@ -990,7 +1132,8 @@ final class VersionRepository
             $costs = [];
             $capped = 0;
             foreach ($db->all($sql, $params) as $row) {
-                $cost = self::costFor((int) $row['global_column'], $rng, $costBase, $costStep);
+                $factor = $factors[(int) $row['tree_id']][(int) $row['global_column']] ?? 1.0;
+                $cost = self::costFor($factor, $rng, $costBase, $jitter);
                 if ($cost >= self::COST_MAX) {
                     $capped++;
                 }
@@ -1015,7 +1158,8 @@ final class VersionRepository
 
             return [
                 'cost_base' => $costBase,
-                'cost_step' => $costStep,
+                'cost_step_lane' => $stepLane,
+                'cost_step_era' => $stepEra,
                 'capped' => $capped,
                 'costs' => $costs,
             ];
